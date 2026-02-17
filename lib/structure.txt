@@ -1,0 +1,8 @@
+lib/
+├── main.dart            # Point d’entrée
+├── api/                 # Services API
+│   └── api_service.dart
+├── models/              # Classes pour représenter tes données (User, Product…)
+├── pages/               # Pages principales (HomeScreen, LoginScreen…)
+├── widgets/             # Composants réutilisables (boutons, cartes…)
+└── utils/               # Fonctions utilitaires (helpers, constantes…)
