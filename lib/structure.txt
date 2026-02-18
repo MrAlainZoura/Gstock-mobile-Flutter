@@ -1,8 +1,10 @@
 lib/
 ├── main.dart            # Point d’entrée
-├── api/                 # Services API
+├── mapper/              # Mapper transformation json - objet -json
+│   └── mapper.dart
+├── api/                 # Services API (REST)
 │   └── api_service.dart
 ├── models/              # Classes pour représenter tes données (User, Product…)
-├── pages/               # Pages principales (HomeScreen, LoginScreen…)
+├── pages/               # Pages principales (Home, Login…)
 ├── widgets/             # Composants réutilisables (boutons, cartes…)
 └── utils/               # Fonctions utilitaires (helpers, constantes…)
