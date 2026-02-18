@@ -1,4 +1,4 @@
-import '../models/user/user.dart';
+import '../models/user.dart';
 
 class UserMapper {
   // Conversion pour une liste d'utilisateurs

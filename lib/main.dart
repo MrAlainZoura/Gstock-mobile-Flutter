@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'pages/user_index.dart'; // ton écran liste
+import 'pages/user/user_index.dart'; // ton écran liste
 
 void main() {
   runApp(const MyApp());

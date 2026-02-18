@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/user/user.dart';
+import '../models/user.dart';
 import '../mapper/user_mapper.dart';
+import '../utils/constants.dart';
 
 
 class ApiService {
-  final String baseUrl = "http://127.0.0.1:8000/api";
-
 Future<List<User>> getAllUsers() async {
     final response = await http.get(Uri.parse("$baseUrl/users"));
     if (response.statusCode == 200) {

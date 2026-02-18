@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../api/api_service.dart';
+import '../../api/user_service.dart';
 import 'user_show.dart';
 
 class UserListScreen extends StatelessWidget {
