@@ -9,7 +9,7 @@ class UserMapper {
 
   // Conversion pour un utilisateur unique
   static User fromJsonSingle(Map<String, dynamic> json) {
-    final userJson = json['data'];
-    return User.fromJson(userJson);
+    // final userJson = json['data'];
+    return User.fromJson(json);
   }
 }

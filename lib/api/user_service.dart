@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/user.dart';
 import '../mapper/user_mapper.dart';
 import '../utils/constants.dart';
+import 'authService.dart';
 
 
 class ApiService {
@@ -10,6 +11,8 @@ Future<List<User>> getAllUsers() async {
     final response = await http.get(Uri.parse("$baseUrl/users"));
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
+      // print(UserMapper.fromJsonList(data));
+      AuthService().login('a.tshiyanze@gmail.com',"0000");
       return UserMapper.fromJsonList(data);
     } else {
       throw Exception("Erreur API: ${response.statusCode}");
@@ -18,6 +21,7 @@ Future<List<User>> getAllUsers() async {
 
  Future<User> getUserById(int id) async {
   final response = await http.get(Uri.parse("$baseUrl/users/$id"));
+  // print("response brute : ${response.body}");
   if (response.statusCode == 200) {
     final data = json.decode(response.body);
     final userJson = data['data'];  

@@ -4,7 +4,7 @@ lib/
 │   └── mapper.dart
 ├── api/                 # Services API (REST)
 │   └── api_service.dart
-├── models/              # Classes pour représenter tes données (User, Product…)
+├── models/              # Classes pour représenter les données (User, Product…)
 ├── pages/               # Pages principales (Home, Login…)
 ├── widgets/             # Composants réutilisables (boutons, cartes…)
 └── utils/               # Fonctions utilitaires (helpers, constantes…)

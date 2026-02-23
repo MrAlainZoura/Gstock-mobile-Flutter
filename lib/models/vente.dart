@@ -10,6 +10,9 @@ class Vente {
   final int deviseId;
   final double updateTaux; 
   final DateTime? deletedAt;
+  final List<dynamic>? paiement;
+  final List<dynamic>? produitVente;
+  //  final List<dynamic>? produit;
 
   Vente({
     required this.id,
@@ -23,6 +26,8 @@ class Vente {
     required this.deviseId,
     required this.updateTaux,
     this.deletedAt,
+    this.paiement,
+    this.produitVente
   });
 
   // Factory method to create an instance of Vente from JSON
@@ -39,6 +44,8 @@ class Vente {
       deviseId: json['devise_id'],
       updateTaux: json['updateTaux'].toDouble(), 
       deletedAt: json['deleted_at'] != null ? DateTime.parse(json['deleted_at']) : null,
+      produitVente    : json['produitVente'] ?? [],
+      paiement    : json['paiement'] ?? [], 
     );
   }
 

@@ -29,7 +29,7 @@ class UserListScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => UserDetailScreen(userId: 39),
+                        builder: (_) => UserDetailScreen(userId: user.id),
                       ),
                     );
                   },
