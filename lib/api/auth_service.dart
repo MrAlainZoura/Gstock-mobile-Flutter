@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../utils/constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/user.dart';
 
 class AuthService {
     Future<bool> login(String email, String password) async {
@@ -18,16 +19,18 @@ class AuthService {
       final data = jsonDecode(response.body);
       final token = data['token'];
       final user = data['user'];
-      final roleUser = data['role_user'];
+      final userRole = data['role_user'];
+      // final User user = data['user'];
+      // final UserRole userRole = data['role_user'];
 
-      // print("reponse user : ${data['user']}");
-      // print("reponse token : $token");
+      // final userJson = jsonEncode(user.toJson());
+      // final userRoleJson = jsonEncode(userRole.toJson());
 
       // Sauvegarder le token localement
       SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString("jwt_token", token);
-        await prefs.setString("user", user);
-        await prefs.setString("role_user", roleUser);
+        await prefs.setString("user", user.toString());
+        await prefs.setString("role_role", userRole.toString());
 
       return true;
     } else {
@@ -38,6 +41,14 @@ class AuthService {
   Future<String?> getToken() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getString("jwt_token");
+  }
+  Future<String?> user() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString("user");
+  }
+  Future<String?> role() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString("role_role");
   }
 
   Future<void> logout() async {
@@ -57,7 +68,7 @@ class AuthService {
       "Content-Type": "application/json",
       "Authorization": "Bearer $token",
     };
-
+    
     switch (method.toUpperCase()) {
       case "GET":
         return await http.get(url, headers: headers);

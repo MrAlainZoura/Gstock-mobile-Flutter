@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'pages/user/user_index.dart'; 
 import 'pages/user/user_show.dart'; 
-import 'pages/user_form.dart';
-import 'pages/home.dart';
+// import 'pages/user_form.dart';
+// import 'pages/home.dart';
+import 'pages/login_page.dart';
+import 'pages/caroussel.dart';
 
 void main() {
   runApp(const MyApp());
@@ -17,8 +19,9 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false, // enlever la bannière rouge
       title: 'GStock Mobile',
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: const HomePage(), // 🚀 Charger la liste au démarrage
-      // home: const UserListScreen(), // 🚀 Charger la liste au démarrage
+      // home: const CarouselExampleApp(), 
+      home: const LoginPage(), 
+      // home: const UserListScreen(), 
       // home: const UserFormScreen(),
       // home: const UserDetailScreen(userId: 1) ,
     );

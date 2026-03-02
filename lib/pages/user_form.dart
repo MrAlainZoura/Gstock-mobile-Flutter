@@ -19,7 +19,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
     super.initState();
     if (widget.userId != null) {
       // Charger les données existantes pour modification
-      ApiService().getUserById(widget.userId!).then((user) {
+      UserService().getUserById(widget.userId!).then((user) {
         setState(() {
           _nameController.text = user.name;
           _emailController.text = user.email;
@@ -62,13 +62,13 @@ class _UserFormScreenState extends State<UserFormScreen> {
                     try {
                       if (widget.userId == null) {
                         // POST
-                        final result = await ApiService().createUser(userData);
+                        final result = await UserService().createUser(userData);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text("Utilisateur créé: ${result['name']}")),
                         );
                       } else {
                         // PUT
-                        final result = await ApiService().updateUser(widget.userId!, userData);
+                        final result = await UserService().updateUser(widget.userId!, userData);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text("Utilisateur mis à jour: ${result['name']}")),
                         );

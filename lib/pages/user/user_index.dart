@@ -10,7 +10,7 @@ class UserListScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text("Liste des utilisateurs")),
       body: FutureBuilder(
-        future: ApiService().getAllUsers(),
+        future: UserService().getAllUsers(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
