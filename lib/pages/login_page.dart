@@ -58,9 +58,11 @@ class _LoginPageState extends State<LoginPage> {
         _isLoading = false;
       });
 
+        final user = await AuthService().user();
+        final role = await AuthService().role();
       // Exemple : afficher le token ou message
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Connexion réussie : ${await AuthService().getToken()}")),
+        SnackBar(content: Text("Connexion réussie, Bienvenue : ${role?.libele} ${user?.name}")),
       );
 
       // Tu peux ensuite naviguer vers une autre page

@@ -3,6 +3,8 @@ import 'package:http/http.dart' as http;
 import '../utils/constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
+import 'package:flutter/foundation.dart';
+import '../mapper/user_mapper.dart';
 
 class AuthService {
     Future<bool> login(String email, String password) async {
@@ -20,17 +22,12 @@ class AuthService {
       final token = data['token'];
       final user = data['user'];
       final userRole = data['role_user'];
-      // final User user = data['user'];
-      // final UserRole userRole = data['role_user'];
-
-      // final userJson = jsonEncode(user.toJson());
-      // final userRoleJson = jsonEncode(userRole.toJson());
 
       // Sauvegarder le token localement
       SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString("jwt_token", token);
-        await prefs.setString("user", user.toString());
-        await prefs.setString("role_role", userRole.toString());
+        await prefs.setString("user", jsonEncode(user));
+        await prefs.setString("user_role", jsonEncode(userRole));
 
       return true;
     } else {
@@ -42,13 +39,35 @@ class AuthService {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getString("jwt_token");
   }
-  Future<String?> user() async {
+  Future<User?> user() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getString("user");
+    final userString = prefs.getString("user");
+    try{
+      if (userString != null) {
+        final user = jsonDecode(userString);
+        return UserMapper.fromJsonSingle(user);
+      }
+      return null;
+    } catch (e, stackTrace) {
+      print('Erreur lors du parsing: $e');
+      debugPrintStack(label: 'Trace de l\'erreur', stackTrace: stackTrace);
+      return null;
+    }
   }
-  Future<String?> role() async {
+  Future<Role?> role() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getString("role_role");
+    final roleString = prefs.getString("user_role");
+    //  print(roleString);
+    try{
+      
+      return (roleString != null)
+                ? Role.fromJson(jsonDecode(roleString))
+                : null ;
+    } catch (e, stackTrace) {
+      print('Erreur lors du parsing: $e');
+      debugPrintStack(label: 'Trace de l\'erreur', stackTrace: stackTrace);
+      return null;
+    }
   }
 
   Future<void> logout() async {

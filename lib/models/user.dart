@@ -100,6 +100,7 @@ class User {
     };
   }
 }
+
 class UserRole {
   final int id;
   final int userId;
@@ -117,16 +118,17 @@ class UserRole {
     this.role
   });
 
-  factory UserRole.fromJson(Map<String, dynamic> json) {
+   factory UserRole.fromJson(Map<String, dynamic> json) {
     return UserRole(
-      id    : json['id'],
-      userId: json['user_id'],
-      roleId: json['role_id'],
-      role  : json['role'],
+      id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
+      userId: json['user_id'] is int ? json['user_id'] : int.parse(json['user_id'].toString()),
+      roleId: json['role_id'] is int ? json['role_id'] : int.parse(json['role_id'].toString()),
+      role: json['role'] != null ? Role.fromJson(json['role']) : null,
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
     );
   }
+
 
   Map<String, dynamic> toJson() {
     return {
@@ -140,7 +142,7 @@ class UserRole {
 
 class Role {
   final int id;
-  final int libele;
+  final String libele;
   final DateTime createdAt;
   final DateTime updatedAt;
 
