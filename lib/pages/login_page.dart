@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../api/auth_service.dart';
+import '../api/depot_service.dart';
 import './user/user_index.dart';
+import './depot/index.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -60,6 +62,7 @@ class _LoginPageState extends State<LoginPage> {
 
         final user = await AuthService().user();
         final role = await AuthService().role();
+        final depots = await DepotService().getAllDepots();
       // Exemple : afficher le token ou message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Connexion réussie, Bienvenue : ${role?.libele} ${user?.name}")),
@@ -70,7 +73,8 @@ class _LoginPageState extends State<LoginPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => UserListScreen(),
+          // builder: (_) => UserListScreen(),
+          builder: (_) => DepotListPage(depots: depots),
         )
       );
   //     );

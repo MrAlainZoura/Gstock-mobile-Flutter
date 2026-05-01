@@ -4,18 +4,36 @@ import '../models/depot.dart';
 import '../mapper/depot_mapper.dart';
 import '../utils/constants.dart';
 import 'auth_service.dart';
+import 'package:flutter/foundation.dart';
 
 
 class DepotService {
 
 Future<List<Depot>> getAllDepots() async {
-    final response = await AuthService().queryProtectedData("depots","GET") ;// await http.get(Uri.parse("$baseUrl/Depots"));
-    if (response?.statusCode == 200)  {
-      final data = jsonDecode(response!.body);
-      // print(DepotMapper.fromJsonList(data));
-      return DepotMapper.fromJsonList(data);
-    } else {
-      throw Exception("Erreur API: ${response?.statusCode}");
+    try{
+      final response = await AuthService().queryProtectedData("depots","GET") ;// await http.get(Uri.parse("$baseUrl/Depots"));
+        // print(response!.body);
+      if (response?.statusCode == 200)  {
+        final decoded = jsonDecode(response!.body);
+        print(decoded['data'].runtimeType);
+      // Vérifie si c'est une Map ou une List
+      if (decoded is Map<String, dynamic>) {
+        final depotsJson = decoded['data'] as List<dynamic>;
+        return DepotMapper.fromJsonList(depotsJson);
+      } else if (decoded is List<dynamic>) {
+        return DepotMapper.fromJsonList(decoded);
+      } else {
+        throw Exception("Format JSON inattendu ${decoded.runtimeType}");
+      }
+
+        
+      } else {
+        throw Exception("Erreur API: ${response?.statusCode}");
+      }
+    } catch (e, stackTrace) {
+      print('Erreur lors du parsing des dépôts: $e');
+      debugPrintStack(label: 'Trace de l\'erreur', stackTrace: stackTrace);
+      return [];
     }
   }
 
