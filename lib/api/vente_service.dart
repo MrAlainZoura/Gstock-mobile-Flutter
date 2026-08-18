@@ -2,6 +2,7 @@ import '../mapper/vente_mapper.dart';
 import '../models/vente.dart';
 import '../utils/methode.dart';
 import 'api_client.dart';
+import 'api_response.dart';
 
 class VenteService {
   final ApiClient _api = ApiClient.instance;
@@ -49,9 +50,13 @@ class VenteService {
   }
 
   /// `POST /ventes` — clés de `produits` en String (objet JSON, pas un tableau).
-  Future<dynamic> create(VenteCreatePayload payload) async {
+  Future<Vente> create(VenteCreatePayload payload) async {
     final res = await _api.post('ventes', body: payload.toJson());
-    return res.data;
+    final data = asMap(res.data);
+    if (data == null) {
+      throw ApiException('Vente enregistrée mais réponse invalide');
+    }
+    return Vente.fromJson(data);
   }
 
   /// `DELETE /ventes/{vente}` — soft-delete, remet le stock (admin).
@@ -80,6 +85,22 @@ class VenteService {
 
   Future<void> forceDelete(int id) async {
     await _api.delete('ventes/$id/force');
+  }
+
+  /// `GET /paiements/depot/{depot}/creances?from=&to=` — défaut : mois en cours.
+  Future<List<VenteCreance>> getCreances(
+    int depotId, {
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final q = _dateQuery(from, to);
+    final res = await _api.get('paiements/depot/$depotId/creances$q');
+    final data = asMap(res.data);
+    final raw = data?['creances'] ?? res.data;
+    return asList(raw)
+        .whereType<Map>()
+        .map((e) => VenteCreance.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
   }
 
   /// `POST /paiements/vente/{vente}` — champ historique **`paiment`**.

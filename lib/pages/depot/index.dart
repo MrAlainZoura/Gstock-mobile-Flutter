@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../api/depot_catalog.dart';
 import '../../models/depot.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
@@ -46,6 +49,9 @@ class DepotListPage extends StatelessWidget {
                     final depot = visible[index];
                     return GestureDetector(
                       onTap: () {
+                        unawaited(
+                          DepotCatalogStore.refreshInBackground(depot.id),
+                        );
                         Navigator.push(
                           context,
                           MaterialPageRoute(

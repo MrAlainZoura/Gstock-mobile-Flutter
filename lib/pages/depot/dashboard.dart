@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../api/dashboard_service.dart';
+import '../../api/depot_catalog.dart';
 import '../../api/depot_service.dart';
 import '../../models/depot.dart';
 import '../../models/monthly_rapport.dart';
@@ -59,6 +62,7 @@ class _DashboardPageState extends State<DashboardPage> {
       MonthlyRapport? stats;
       List<Produit> stock = [];
       if (depot != null) {
+        unawaited(DepotCatalogStore.refreshInBackground(depot.id));
         final extra = await Future.wait([
           _safeStats(depot.id),
           _safeStock(depot.id),

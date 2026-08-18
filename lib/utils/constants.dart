@@ -9,3 +9,4 @@ const String baseUrl = "http://127.0.0.1:8000/api";
 const String storageTokenKey = "jwt_token";
 const String storageUserKey = "user";
 const String storageRoleKey = "user_role";
+const String storageCatalogPrefix = "depot_catalog_";

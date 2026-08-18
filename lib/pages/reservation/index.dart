@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../api/depot_catalog.dart';
 import '../../api/reservation_service.dart';
 import '../../models/depot.dart';
 import '../../models/reservation.dart';
@@ -7,6 +10,8 @@ import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/duree.dart';
 import '../../utils/period.dart';
+import 'create.dart';
+import 'creances.dart';
 import 'show.dart';
 import 'trashed.dart';
 
@@ -33,6 +38,7 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
   void initState() {
     super.initState();
     _load();
+    unawaited(DepotCatalogStore.refreshInBackground(widget.depot.id));
   }
 
   @override
@@ -84,10 +90,20 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
       appBar: AppBar(
         title: Text("Réservations — ${widget.depot.libele}"),
         actions: [
-          if (_access.canSeeCorbeille)
-            IconButton(
-              tooltip: 'Corbeille',
-              onPressed: () async {
+          PopupMenuButton<String>(
+            tooltip: 'Menu',
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) async {
+              if (value == 'tranches') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ReservationCreancesPage(depot: widget.depot),
+                  ),
+                );
+                if (mounted) _load();
+              } else if (value == 'corbeille') {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -96,9 +112,32 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
                   ),
                 );
                 if (mounted) _load();
-              },
-              icon: const Icon(Icons.delete_outline),
-            ),
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'tranches',
+                child: Row(
+                  children: [
+                    Icon(Icons.payments_outlined, size: 20),
+                    SizedBox(width: 12),
+                    Text('Réservations par tranche'),
+                  ],
+                ),
+              ),
+              if (_access.canSeeCorbeille)
+                const PopupMenuItem(
+                  value: 'corbeille',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 20),
+                      SizedBox(width: 12),
+                      Text('Corbeille'),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
       body: Column(
@@ -193,6 +232,7 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
                                         MaterialPageRoute(
                                           builder: (_) => ReservationShowPage(
                                             reservationId: row.id,
+                                            depot: widget.depot,
                                           ),
                                         ),
                                       );
@@ -205,6 +245,18 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
                           ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReservationCreatePage(depot: widget.depot),
+            ),
+          );
+          if (mounted) _load();
+        },
+        child: const Icon(Icons.add),
       ),
     );
   }

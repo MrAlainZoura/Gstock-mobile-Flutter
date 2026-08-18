@@ -27,6 +27,13 @@ class ApiClient {
     await prefs.remove(storageTokenKey);
     await prefs.remove(storageUserKey);
     await prefs.remove(storageRoleKey);
+    final catalogKeys = prefs
+        .getKeys()
+        .where((k) => k.startsWith(storageCatalogPrefix))
+        .toList();
+    for (final key in catalogKeys) {
+      await prefs.remove(key);
+    }
   }
 
   Uri _uri(String path) {

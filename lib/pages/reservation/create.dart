@@ -4,28 +4,27 @@ import 'package:flutter/material.dart';
 
 import '../../api/api_response.dart';
 import '../../api/depot_catalog.dart';
-import '../../api/vente_service.dart';
+import '../../api/reservation_service.dart';
 import '../../models/depot.dart';
 import '../../models/produit.dart';
+import '../../models/reservation.dart';
 import '../../models/vente.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/duree.dart';
 import '../../utils/methode.dart';
 import 'show.dart';
 
-/// Création `POST /ventes`.
-///
-/// `produits` : `{ "<produit_id>": { "<quantite>": <prix_total> } }`
-/// `monnaie` : `"<devise_id>-<libele>"`.
-class VenteCreatePage extends StatefulWidget {
-  const VenteCreatePage({super.key, required this.depot});
+/// Création `POST /reservations`.
+class ReservationCreatePage extends StatefulWidget {
+  const ReservationCreatePage({super.key, required this.depot});
 
   final Depot depot;
 
   @override
-  State<VenteCreatePage> createState() => _VenteCreatePageState();
+  State<ReservationCreatePage> createState() => _ReservationCreatePageState();
 }
 
-class _VenteCreatePageState extends State<VenteCreatePage> {
+class _ReservationCreatePageState extends State<ReservationCreatePage> {
   final _formKey = GlobalKey<FormState>();
   final _nomClient = TextEditingController(text: 'Passant');
   final _contact = TextEditingController();
@@ -45,7 +44,7 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
   List<_StockItem> _stock = [];
   List<_DeviseOption> _devises = [];
   _DeviseOption? _devise;
-  final List<_SaleLine> _lines = [];
+  final List<_ResaLine> _lines = [];
 
   @override
   void initState() {
@@ -142,20 +141,13 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
     });
   }
 
-  int _availableStock(_StockItem item) {
-    for (final p in _stock) {
-      if (p.id == item.id) return p.stock;
-    }
-    return item.stock;
-  }
-
   num get _tauxValue {
     final value = asDouble(_taux.text.trim()) ?? 0;
     return value <= 0 ? 1 : value;
   }
 
   num get _net {
-    return _lines.fold<num>(0, (sum, line) => sum + line.prixT);
+    return _lines.fold<num>(0, (sum, line) => sum + line.montant);
   }
 
   MoneyPair get _netPair {
@@ -163,6 +155,13 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
       return MoneyPair(cdf: _net, devise: _net / _tauxValue);
     }
     return MoneyPair(cdf: _net * _tauxValue, devise: _net);
+  }
+
+  /// L’API stocke toujours les montants en CDF et pose
+  /// `reference_devise = net / taux`. Même conversion que le web.
+  num _toCdf(num amount) {
+    if (_prixEnCdf) return amount;
+    return amount * _tauxValue;
   }
 
   List<_StockItem> get _available {
@@ -182,32 +181,67 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
     });
   }
 
+  DateTime _defaultStart() {
+    final now = DateTime.now().add(const Duration(minutes: 15));
+    return DateTime(now.year, now.month, now.day, now.hour, now.minute);
+  }
+
   void _addProduct(_StockItem item) {
-    if (_availableStock(item) <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.red,
-          content: Text(
-            "${item.name} est en rupture de stock. La vente ne sera pas enregistrée.",
-          ),
-        ),
-      );
-      return;
-    }
-    final defaultPu = _prixEnCdf
+    final start = _defaultStart();
+    final defaultMontant = _prixEnCdf
         ? (item.cdfPrix > 0 ? item.cdfPrix : item.prix)
         : (item.prix > 0 ? item.prix : item.cdfPrix);
     setState(() {
-      _lines.add(_SaleLine(item: item, qty: 1, prixU: defaultPu));
+      _lines.add(
+        _ResaLine(
+          item: item,
+          debut: start,
+          fin: start.add(const Duration(hours: 1)),
+          montant: defaultMontant,
+        ),
+      );
       _search.clear();
       _query = '';
     });
   }
 
-  void _removeLine(_SaleLine line) {
+  void _removeLine(_ResaLine line) {
     setState(() {
       _lines.remove(line);
       line.dispose();
+    });
+  }
+
+  Future<void> _pickDateTime(_ResaLine line, {required bool start}) async {
+    final initial = start ? line.debut : line.fin;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (!mounted) return;
+    final picked = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time?.hour ?? initial.hour,
+      time?.minute ?? initial.minute,
+    );
+    setState(() {
+      if (start) {
+        line.debut = picked;
+        if (!line.fin.isAfter(line.debut)) {
+          line.fin = line.debut.add(const Duration(hours: 1));
+        }
+      } else {
+        line.fin = picked;
+      }
     });
   }
 
@@ -226,22 +260,16 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
       return;
     }
     for (final line in _lines) {
-      if (line.qty <= 0 || line.prixU <= 0) {
+      if (line.montant <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Qté et PU requis pour ${line.item.name}")),
+          SnackBar(content: Text("Montant requis pour ${line.item.name}")),
         );
         return;
       }
-      final stock = _availableStock(line.item);
-      if (stock <= 0 || line.qty > stock) {
+      if (!line.fin.isAfter(line.debut)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: AppColors.red,
-            content: Text(
-              stock <= 0
-                  ? "${line.item.name} est en rupture de stock. La vente ne sera pas enregistrée."
-                  : "Stock insuffisant pour ${line.item.name} ($stock). La vente ne sera pas enregistrée.",
-            ),
+            content: Text("La fin doit être après le début (${line.item.name})"),
           ),
         );
         return;
@@ -250,12 +278,16 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
 
     setState(() => _saving = true);
     try {
-      final produits = <String, Map<String, num>>{};
+      final reservations = <String, Map<String, dynamic>>{};
       for (final line in _lines) {
-        produits['${line.item.id}'] = {'${line.qty}': line.prixT};
+        reservations['${line.item.id}'] = {
+          'startAt': _apiDateTime(line.debut),
+          'endAt': _apiDateTime(line.fin),
+          'montant': _toCdf(line.montant),
+        };
       }
-      final created = await VenteService().create(
-        VenteCreatePayload(
+      final created = await ReservationService().create(
+        ReservationCreatePayload(
           depotId: widget.depot.id,
           lieuDeVente: _lieu,
           nomClient: _nomClient.text.trim().isEmpty
@@ -266,25 +298,20 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
           monnaie: '${_devise!.id}-${_devise!.libele}',
           updateDevise: _tauxValue,
           tranche: _tranche,
-          trancheP: num.tryParse(_trancheP.text.trim()) ?? 0,
-          produits: produits,
+          trancheP: _toCdf(num.tryParse(_trancheP.text.trim()) ?? 0),
+          reservations: reservations,
         ),
       );
-      unawaited(
-        DepotCatalogStore.applySaleThenRefresh(
-          widget.depot.id,
-          {for (final line in _lines) line.item.id: line.qty},
-        ),
-      );
+      unawaited(DepotCatalogStore.refreshInBackground(widget.depot.id));
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Vente enregistrée")),
+        const SnackBar(content: Text("Réservation enregistrée")),
       );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => VenteShowPage(
-            venteId: created.id,
+          builder: (_) => ReservationShowPage(
+            reservationId: created.id,
             depot: widget.depot,
           ),
         ),
@@ -312,7 +339,7 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
-        title: Text("Nouvelle vente — ${widget.depot.libele}"),
+        title: Text("Nouvelle réservation — ${widget.depot.libele}"),
       ),
       body: _loadingForm
           ? const Center(child: CircularProgressIndicator())
@@ -368,7 +395,7 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
                               key: ValueKey(_lieu),
                               initialValue: _lieu,
                               decoration: const InputDecoration(
-                                labelText: "Lieu de vente",
+                                labelText: "Lieu",
                               ),
                               items: const [
                                 DropdownMenuItem(
@@ -436,11 +463,11 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
                             ),
                             SwitchListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: const Text("Prix saisis en CDF"),
+                              title: const Text("Montants saisis en CDF"),
                               subtitle: Text(
                                 _prixEnCdf
-                                    ? "Le PU est en francs congolais"
-                                    : "Le PU est en ${_devise?.libele ?? 'devise'}",
+                                    ? "Le montant est en francs congolais"
+                                    : "Le montant est en ${_devise?.libele ?? 'devise'}",
                                 style: const TextStyle(color: AppColors.gray),
                               ),
                               value: _prixEnCdf,
@@ -491,17 +518,13 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
                                       contentPadding: EdgeInsets.zero,
                                       leading: Icon(
                                         Icons.add_circle_outline,
-                                        color: p.stock <= 0
-                                            ? AppColors.gray
-                                            : AppColors.blue,
+                                        color: AppColors.blue,
                                       ),
                                       title: Text(p.name),
                                       subtitle: Text(
                                         "Stock ${p.stock} ${p.unite}",
-                                        style: TextStyle(
-                                          color: p.stock <= 0
-                                              ? AppColors.red
-                                              : AppColors.gray,
+                                        style: const TextStyle(
+                                          color: AppColors.gray,
                                         ),
                                       ),
                                       onTap: () => _addProduct(p),
@@ -561,7 +584,7 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
                                     color: AppColors.white,
                                   ),
                                 )
-                              : const Text("Enregistrer la vente"),
+                              : const Text("Enregistrer la réservation"),
                         ),
                       ),
                     ],
@@ -570,7 +593,45 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
     );
   }
 
-  Widget _lineCard(_SaleLine line) {
+  Widget _datePickButton({
+    required String label,
+    required DateTime value,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 48,
+              child: Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                formatDateTimeFr(value),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _lineCard(_ResaLine line) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 2,
@@ -594,45 +655,37 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
                 ),
               ],
             ),
-            Text(
-              "Stock ${_availableStock(line.item)} ${line.item.unite}",
-              style: const TextStyle(color: AppColors.gray, fontSize: 12),
+            _datePickButton(
+              label: 'Début',
+              value: line.debut,
+              icon: Icons.play_arrow,
+              onPressed: () => _pickDateTime(line, start: true),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: line.qtyCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: "Qté"),
-                    onChanged: (v) {
-                      setState(() => line.qty = int.tryParse(v) ?? 0);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextFormField(
-                    controller: line.prixCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText:
-                          "PU (${_prixEnCdf ? 'CDF' : (_devise?.libele ?? '')})",
-                    ),
-                    onChanged: (v) {
-                      setState(() => line.prixU = asDouble(v) ?? 0);
-                    },
-                  ),
-                ),
-              ],
+            _datePickButton(
+              label: 'Fin',
+              value: line.fin,
+              icon: Icons.stop,
+              onPressed: () => _pickDateTime(line, start: false),
             ),
             const SizedBox(height: 8),
             Text(
-              "Total ${formatMoney(line.prixT)} ${_prixEnCdf ? 'CDF' : (_devise?.libele ?? '')}",
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              "Période ${formatPeriode(line.debut, line.fin)}",
+              style: const TextStyle(color: AppColors.gray),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: line.montantCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText:
+                    "Montant (${_prixEnCdf ? 'CDF' : (_devise?.libele ?? '')})",
+              ),
+              onChanged: (v) {
+                setState(() => line.montant = asDouble(v) ?? 0);
+              },
             ),
           ],
         ),
@@ -770,28 +823,33 @@ class _StockItem {
   }
 }
 
-class _SaleLine {
-  _SaleLine({required this.item, required int qty, required num prixU})
-      : qtyCtrl = TextEditingController(text: '$qty'),
-        prixCtrl = TextEditingController(text: _plain(prixU)),
-        qty = qty,
-        prixU = prixU;
+class _ResaLine {
+  _ResaLine({
+    required this.item,
+    required this.debut,
+    required this.fin,
+    required num montant,
+  })  : montantCtrl = TextEditingController(text: _plain(montant)),
+        montant = montant;
 
   final _StockItem item;
-  final TextEditingController qtyCtrl;
-  final TextEditingController prixCtrl;
-  int qty;
-  num prixU;
-
-  num get prixT => qty * prixU;
+  final TextEditingController montantCtrl;
+  DateTime debut;
+  DateTime fin;
+  num montant;
 
   void dispose() {
-    qtyCtrl.dispose();
-    prixCtrl.dispose();
+    montantCtrl.dispose();
   }
 }
 
 String _plain(num value) {
   if (value == value.roundToDouble()) return value.round().toString();
   return value.toString();
+}
+
+String _apiDateTime(DateTime value) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${value.year}-${two(value.month)}-${two(value.day)} '
+      '${two(value.hour)}:${two(value.minute)}:00';
 }

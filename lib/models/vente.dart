@@ -301,3 +301,63 @@ String formatMoney(num value) {
       : buf.toString();
   return negative ? '-$formatted' : formatted;
 }
+
+/// Synthèse `GET /paiements/depot/{depot}/creances`.
+class VenteCreance {
+  VenteCreance({
+    required this.id,
+    required this.vendeur,
+    required this.clientNom,
+    required this.clientTel,
+    required this.produits,
+    required this.tranches,
+    required this.net,
+    required this.devise,
+    this.date,
+  });
+
+  final int id;
+  final String vendeur;
+  final String clientNom;
+  final String clientTel;
+  final List<String> produits;
+  final List<String> tranches;
+  final num net;
+  final String devise;
+  final DateTime? date;
+
+  factory VenteCreance.fromJson(Map<String, dynamic> json) {
+    final client = asMap(json['client']);
+    return VenteCreance(
+      id: asInt(json['id']),
+      vendeur: json['vendeur']?.toString().trim() ?? '',
+      clientNom: client?['nom']?.toString().trim() ?? '',
+      clientTel: client?['tel']?.toString() ?? '',
+      produits: asList(json['prod']).map((e) => e.toString()).toList(),
+      tranches: asList(json['tranche']).map((e) => e.toString()).toList(),
+      net: asDouble(json['net']) ?? 0,
+      devise: json['devise']?.toString() ?? '',
+      date: asDateTime(client?['date']),
+    );
+  }
+
+  String get productSummary {
+    if (produits.isEmpty) return '—';
+    if (produits.length == 1) return produits.first;
+    return '${produits.first} ...';
+  }
+
+  String get lastTranche => tranches.isEmpty ? '—' : tranches.last;
+
+  String get searchText {
+    return [
+      id.toString(),
+      vendeur,
+      clientNom,
+      clientTel,
+      ...produits,
+      ...tranches,
+      date?.toString() ?? '',
+    ].join(' ').toLowerCase();
+  }
+}

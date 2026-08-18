@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../../api/api_response.dart';
 import '../../api/vente_service.dart';
+import '../../models/depot.dart';
 import '../../models/vente.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/confirm_dialog.dart';
+import 'create.dart';
 
 /// Détail `GET /ventes/{id}` + paiement créance.
 class VenteShowPage extends StatefulWidget {
-  const VenteShowPage({super.key, required this.venteId});
+  const VenteShowPage({super.key, required this.venteId, this.depot});
 
   final int venteId;
+  final Depot? depot;
 
   @override
   State<VenteShowPage> createState() => _VenteShowPageState();
@@ -131,6 +134,37 @@ class _VenteShowPageState extends State<VenteShowPage> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(context, true),
+                          icon: const Icon(Icons.list_alt),
+                          label: const Text("Aller à la liste"),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: widget.depot == null
+                              ? null
+                              : () {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => VenteCreatePage(
+                                        depot: widget.depot!,
+                                      ),
+                                    ),
+                                  );
+                                },
+                          icon: const Icon(Icons.add),
+                          label: const Text("Ajouter une vente"),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   _InfoCard(
                     children: [
                       _kv("Client", vente.clientName),

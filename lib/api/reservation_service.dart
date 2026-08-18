@@ -36,6 +36,22 @@ class ReservationService {
     return '?${Uri(queryParameters: params).query}';
   }
 
+  /// `GET /reservations/depot/{depot}/create` — stock, clients, devises.
+  Future<Map<String, dynamic>> getCreateForm(int depotId) async {
+    final res = await _api.get('reservations/depot/$depotId/create');
+    return asMap(res.data) ?? {};
+  }
+
+  /// `POST /reservations`
+  Future<Reservation> create(ReservationCreatePayload payload) async {
+    final res = await _api.post('reservations', body: payload.toJson());
+    final data = asMap(res.data);
+    if (data == null) {
+      throw ApiException('Réservation créée mais réponse invalide');
+    }
+    return Reservation.fromJson(data);
+  }
+
   /// `GET /reservations/{id}`
   Future<Reservation> getById(int id) async {
     final res = await _api.get('reservations/$id');
@@ -73,6 +89,22 @@ class ReservationService {
   /// `DELETE /reservations/{id}` — soft-delete (admin).
   Future<void> delete(int id) async {
     await _api.delete('reservations/$id');
+  }
+
+  /// `GET /reservations/depot/{depot}/creance?from=&to=` — défaut : mois en cours.
+  Future<List<ReservationCreance>> getCreances(
+    int depotId, {
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final q = _dateQuery(from, to);
+    final res = await _api.get('reservations/depot/$depotId/creance$q');
+    final data = asMap(res.data);
+    final raw = data?['creances'] ?? res.data;
+    return asList(raw)
+        .whereType<Map>()
+        .map((e) => ReservationCreance.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
   }
 
   /// `POST /reservations/{id}/paiements` — champ historique **`paiment`**.

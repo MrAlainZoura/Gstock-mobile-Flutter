@@ -2,18 +2,25 @@ import 'package:flutter/material.dart';
 
 import '../../api/api_response.dart';
 import '../../api/reservation_service.dart';
+import '../../models/depot.dart';
 import '../../models/reservation.dart';
 import '../../models/vente.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/duree.dart';
 import '../../widgets/confirm_dialog.dart';
+import 'create.dart';
 
 /// Détail `GET /reservations/{id}` + paiement créance.
 class ReservationShowPage extends StatefulWidget {
-  const ReservationShowPage({super.key, required this.reservationId});
+  const ReservationShowPage({
+    super.key,
+    required this.reservationId,
+    this.depot,
+  });
 
   final int reservationId;
+  final Depot? depot;
 
   @override
   State<ReservationShowPage> createState() => _ReservationShowPageState();
@@ -135,6 +142,37 @@ class _ReservationShowPageState extends State<ReservationShowPage> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(context, true),
+                          icon: const Icon(Icons.list_alt),
+                          label: const Text("Aller à la liste"),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: widget.depot == null
+                              ? null
+                              : () {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ReservationCreatePage(
+                                        depot: widget.depot!,
+                                      ),
+                                    ),
+                                  );
+                                },
+                          icon: const Icon(Icons.add),
+                          label: const Text("Ajouter une réserv."),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   _InfoCard(
                     children: [
                       _kv("Client", reservation.clientName),

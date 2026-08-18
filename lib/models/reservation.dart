@@ -65,6 +65,56 @@ class Reservation {
   }
 }
 
+/// Payload `POST /reservations`.
+/// `reservations` : `{ "<produit_id>": { startAt, endAt, montant } }`
+/// `monnaie` : `"<devise_id>-<libele>"`.
+class ReservationCreatePayload {
+  ReservationCreatePayload({
+    required this.depotId,
+    required this.lieuDeVente,
+    required this.reservations,
+    this.nomClient = 'Passant',
+    this.prenom = '',
+    this.contactClient = '',
+    this.adresse = '',
+    this.genre = 'M',
+    this.monnaie = '2-USD',
+    this.updateDevise = 2800,
+    this.tranche = false,
+    this.trancheP = 0,
+  });
+
+  final int depotId;
+  final String lieuDeVente;
+  final Map<String, Map<String, dynamic>> reservations;
+  final String nomClient;
+  final String prenom;
+  final String contactClient;
+  final String adresse;
+  final String genre;
+  final String monnaie;
+  final num updateDevise;
+  final bool tranche;
+  final num trancheP;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'depot_id': depotId,
+      'nom_client': nomClient,
+      'prenom': prenom,
+      'contact_client': contactClient,
+      'adresse': adresse,
+      'genre': genre,
+      'lieu_de_vente': lieuDeVente,
+      'monnaie': monnaie,
+      'updateDevise': updateDevise,
+      'tranche': tranche,
+      'trancheP': trancheP,
+      'reservations': reservations,
+    };
+  }
+}
+
 class ReservationLigne {
   ReservationLigne({
     required this.libele,
@@ -103,22 +153,12 @@ extension ReservationDisplay on Reservation {
     return t == 0 ? 1 : t;
   }
 
-  /// `reference_devise` rempli sur le 1er paiement → montants stockés en CDF.
-  bool get amountsStoredInCdf {
-    final rows = paiement ?? [];
-    if (rows.isEmpty) return false;
-    final first = asMap(rows.first);
-    final ref = first?['reference_devise'];
-    if (ref == null) return false;
-    if (ref is String && ref.trim().isEmpty) return false;
-    return true;
-  }
+  /// Réservations : montants toujours en CDF. L’API pose
+  /// `reference_devise = net / taux` à la création.
+  bool get amountsStoredInCdf => true;
 
   MoneyPair convert(num amount) {
-    if (amountsStoredInCdf) {
-      return MoneyPair(cdf: amount, devise: amount / taux);
-    }
-    return MoneyPair(cdf: amount * taux, devise: amount);
+    return MoneyPair(cdf: amount, devise: amount / taux);
   }
 
   String moneyLabel(num amount) {
@@ -219,4 +259,58 @@ String _personName(dynamic raw, {String fallback = ''}) {
     map['prenom'],
   ].where((e) => e != null && e.toString().trim().isNotEmpty).join(' ');
   return name.isEmpty ? fallback : name;
+}
+
+/// Synthèse `GET /reservations/depot/{depot}/creance`.
+class ReservationCreance {
+  ReservationCreance({
+    required this.id,
+    required this.vendeur,
+    required this.clientNom,
+    required this.clientTel,
+    required this.produits,
+    required this.tranches,
+    this.date,
+  });
+
+  final int id;
+  final String vendeur;
+  final String clientNom;
+  final String clientTel;
+  final List<String> produits;
+  final List<String> tranches;
+  final DateTime? date;
+
+  factory ReservationCreance.fromJson(Map<String, dynamic> json) {
+    final client = asMap(json['client']);
+    return ReservationCreance(
+      id: asInt(json['id']),
+      vendeur: json['vendeur']?.toString().trim() ?? '',
+      clientNom: client?['nom']?.toString().trim() ?? '',
+      clientTel: client?['tel']?.toString() ?? '',
+      produits: asList(json['prod']).map((e) => e.toString()).toList(),
+      tranches: asList(json['tranche']).map((e) => e.toString()).toList(),
+      date: asDateTime(client?['date']),
+    );
+  }
+
+  String get productSummary {
+    if (produits.isEmpty) return '—';
+    if (produits.length == 1) return produits.first;
+    return '${produits.first} ...';
+  }
+
+  String get lastTranche => tranches.isEmpty ? '—' : tranches.last;
+
+  String get searchText {
+    return [
+      id.toString(),
+      vendeur,
+      clientNom,
+      clientTel,
+      ...produits,
+      ...tranches,
+      date?.toString() ?? '',
+    ].join(' ').toLowerCase();
+  }
 }
