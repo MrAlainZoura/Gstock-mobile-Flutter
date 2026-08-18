@@ -1,28 +1,30 @@
 import 'package:flutter/material.dart';
 
 import '../../api/api_response.dart';
-import '../../api/vente_service.dart';
+import '../../api/reservation_service.dart';
+import '../../models/reservation.dart';
 import '../../models/vente.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/duree.dart';
 import '../../widgets/confirm_dialog.dart';
 
-/// Détail `GET /ventes/{id}` + paiement créance.
-class VenteShowPage extends StatefulWidget {
-  const VenteShowPage({super.key, required this.venteId});
+/// Détail `GET /reservations/{id}` + paiement créance.
+class ReservationShowPage extends StatefulWidget {
+  const ReservationShowPage({super.key, required this.reservationId});
 
-  final int venteId;
+  final int reservationId;
 
   @override
-  State<VenteShowPage> createState() => _VenteShowPageState();
+  State<ReservationShowPage> createState() => _ReservationShowPageState();
 }
 
-class _VenteShowPageState extends State<VenteShowPage> {
+class _ReservationShowPageState extends State<ReservationShowPage> {
   final _paiment = TextEditingController();
   bool _paying = false;
   bool _loading = true;
   String? _error;
-  Vente? _vente;
+  Reservation? _reservation;
   Access _access = Access();
 
   @override
@@ -44,12 +46,12 @@ class _VenteShowPageState extends State<VenteShowPage> {
     });
     try {
       final results = await Future.wait([
-        VenteService().getById(widget.venteId),
+        ReservationService().getById(widget.reservationId),
         Access.load(),
       ]);
       if (!mounted) return;
       setState(() {
-        _vente = results[0] as Vente;
+        _reservation = results[0] as Reservation;
         _access = results[1] as Access;
         _loading = false;
       });
@@ -67,7 +69,7 @@ class _VenteShowPageState extends State<VenteShowPage> {
     if (montant == null) return;
     setState(() => _paying = true);
     try {
-      await VenteService().payerCreance(widget.venteId, montant);
+      await ReservationService().payerCreance(widget.reservationId, montant);
       if (!mounted) return;
       _paiment.clear();
       ScaffoldMessenger.of(
@@ -85,19 +87,19 @@ class _VenteShowPageState extends State<VenteShowPage> {
   }
 
   Future<void> _delete() async {
-    if (!_access.canDeleteVente) return;
+    if (!_access.canDeleteReservation) return;
     final ok = await confirmAction(
       context,
-      title: 'Supprimer cette vente ?',
+      title: 'Supprimer cette réservation ?',
       message:
-          'La vente sera envoyée à la corbeille. Cette action est réservée aux administrateurs.',
+          'La réservation sera envoyée à la corbeille. Cette action est réservée aux administrateurs.',
     );
     if (!ok || !mounted) return;
     try {
-      await VenteService().delete(widget.venteId);
+      await ReservationService().delete(widget.reservationId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Vente supprimée (corbeille)")),
+        const SnackBar(content: Text("Réservation supprimée (corbeille)")),
       );
       Navigator.pop(context, true);
     } on ApiException catch (e) {
@@ -110,22 +112,24 @@ class _VenteShowPageState extends State<VenteShowPage> {
 
   @override
   Widget build(BuildContext context) {
-    final vente = _vente;
+    final reservation = _reservation;
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
         title: Text(
-          vente == null
-              ? "Détail vente"
-              : (vente.code.isEmpty ? "Vente #${vente.id}" : vente.code),
+          reservation == null
+              ? "Détail réservation"
+              : (reservation.code.isEmpty
+                    ? "Réservation #${reservation.id}"
+                    : reservation.code),
         ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
           ? Center(child: Text("Erreur: $_error"))
-          : vente == null
-          ? const Center(child: Text("Vente introuvable"))
+          : reservation == null
+          ? const Center(child: Text("Réservation introuvable"))
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
@@ -133,24 +137,29 @@ class _VenteShowPageState extends State<VenteShowPage> {
                 children: [
                   _InfoCard(
                     children: [
-                      _kv("Client", vente.clientName),
-                      _kv("Facturé par", vente.vendorName),
+                      _kv("Client", reservation.clientName),
+                      _kv("Facturé par", reservation.vendorName),
+                      if (reservation.statut.isNotEmpty)
+                        _kv("Statut", reservation.statut),
                       _kv(
                         "Taux de change",
-                        "1 ${vente.deviseLibele} = ${formatMoney(vente.taux)} CDF",
+                        "1 ${reservation.deviseLibele} = ${formatMoney(reservation.taux)} CDF",
                       ),
-                      if (vente.createdAt != null)
+                      _kv("Début", formatDateTimeFr(reservation.dateDebut)),
+                      _kv("Fin", formatDateTimeFr(reservation.dateFin)),
+                      _kv("Période", reservation.periode),
+                      if (reservation.createdAt != null)
                         _kv(
-                          "Date",
-                          vente.createdAt.toString().split('.').first,
+                          "Créée le",
+                          formatDateTimeFr(reservation.createdAt),
                         ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _ProductsCard(vente: vente),
+                  _ProductsCard(reservation: reservation),
                   const SizedBox(height: 12),
-                  _TotalsCard(vente: vente),
-                  if (vente.reste > 0) ...[
+                  _TotalsCard(reservation: reservation),
+                  if (reservation.reste > 0) ...[
                     const SizedBox(height: 12),
                     Card(
                       child: Padding(
@@ -167,7 +176,8 @@ class _VenteShowPageState extends State<VenteShowPage> {
                               controller: _paiment,
                               keyboardType: TextInputType.number,
                               decoration: InputDecoration(
-                                labelText: "Montant (${vente.deviseLibele})",
+                                labelText:
+                                    "Montant (${reservation.deviseLibele})",
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -180,7 +190,7 @@ class _VenteShowPageState extends State<VenteShowPage> {
                       ),
                     ),
                   ],
-                  if (_access.canDeleteVente) ...[
+                  if (_access.canDeleteReservation) ...[
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
@@ -239,97 +249,76 @@ class _InfoCard extends StatelessWidget {
 }
 
 class _ProductsCard extends StatelessWidget {
-  const _ProductsCard({required this.vente});
+  const _ProductsCard({required this.reservation});
 
-  final Vente vente;
+  final Reservation reservation;
 
   @override
   Widget build(BuildContext context) {
-    final hasComp = vente.hasCompassassion;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              hasComp ? "Produits (compassassion)" : "Produits",
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            const Text(
+              "Produits",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            if (hasComp) ...[
-              ...vente.lignesCompassassion.map((l) => _ligne(vente, l)),
-              const SizedBox(height: 12),
-              const Divider(),
-              const SizedBox(height: 8),
-              const Text(
-                "Article vente précédente",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.gray,
-                ),
-              ),
-              const SizedBox(height: 4),
-              if (vente.lignes.isEmpty)
-                const Text(
-                  "Aucun produit précédent",
-                  style: TextStyle(color: AppColors.gray),
-                )
-              else
-                ...vente.lignes.map((l) => _ligne(vente, l, referenced: true)),
-            ] else if (vente.lignes.isEmpty)
+            if (reservation.lignes.isEmpty)
               const Text(
                 "Aucun produit",
                 style: TextStyle(color: AppColors.gray),
               )
             else
-              ...vente.lignes.map((l) => _ligne(vente, l)),
+              ...reservation.lignes.map((l) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l.libele,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Début ${formatDateTimeFr(l.debut)}",
+                        style: const TextStyle(color: AppColors.gray),
+                      ),
+                      Text(
+                        "Fin ${formatDateTimeFr(l.fin)}",
+                        style: const TextStyle(color: AppColors.gray),
+                      ),
+                      Text(
+                        "Période ${l.periode}",
+                        style: const TextStyle(color: AppColors.gray),
+                      ),
+                      Text(
+                        "Total ${reservation.moneyLabel(l.montant)}",
+                        style: const TextStyle(color: AppColors.gray),
+                      ),
+                      if (l.reduction > 0)
+                        Text(
+                          "Réduction ${reservation.moneyLabel(l.reduction)}",
+                          style: const TextStyle(color: AppColors.gray),
+                        ),
+                    ],
+                  ),
+                );
+              }),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _ligne(Vente vente, VenteLigne l, {bool referenced = false}) {
-    final unite = (l.unite != null && l.unite!.isNotEmpty) ? l.unite! : 'pcs';
-    final color = referenced ? AppColors.gray : AppColors.black;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            referenced ? "Réf. ${l.libele}" : l.libele,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: color,
-              fontStyle: referenced ? FontStyle.italic : FontStyle.normal,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "Qté ${formatMoney(l.quantite)} $unite",
-            style: const TextStyle(color: AppColors.gray),
-          ),
-          Text(
-            "PU ${vente.moneyLabel(l.prixU)}",
-            style: const TextStyle(color: AppColors.gray),
-          ),
-          Text(
-            "Total ${vente.moneyLabel(l.prixT)}",
-            style: const TextStyle(color: AppColors.gray),
-          ),
-        ],
       ),
     );
   }
 }
 
 class _TotalsCard extends StatelessWidget {
-  const _TotalsCard({required this.vente});
+  const _TotalsCard({required this.reservation});
 
-  final Vente vente;
+  final Reservation reservation;
 
   @override
   Widget build(BuildContext context) {
@@ -338,13 +327,22 @@ class _TotalsCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            _row("Net à payer", vente.moneyLabel(vente.netAPayer), bold: true),
-            _row("Paiement reçu", vente.moneyLabel(vente.paiementRecu)),
-            if (vente.isTranche)
+            _row(
+              "Net à payer",
+              reservation.moneyLabel(reservation.netAPayer),
+              bold: true,
+            ),
+            _row(
+              "Paiement reçu",
+              reservation.moneyLabel(reservation.paiementRecu),
+            ),
+            if (reservation.isTranche)
               _row(
                 "Reste (tranche)",
-                vente.moneyLabel(vente.reste),
-                valueColor: vente.reste > 0 ? AppColors.red : AppColors.black,
+                reservation.moneyLabel(reservation.reste),
+                valueColor: reservation.reste > 0
+                    ? AppColors.red
+                    : AppColors.black,
               ),
           ],
         ),

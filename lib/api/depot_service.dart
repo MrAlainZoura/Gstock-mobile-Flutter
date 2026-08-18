@@ -1,80 +1,107 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../models/depot.dart';
 import '../mapper/depot_mapper.dart';
-import '../utils/constants.dart';
-import 'auth_service.dart';
-import 'package:flutter/foundation.dart';
+import '../models/depot.dart';
+import '../models/produit.dart';
+import '../utils/methode.dart';
+import 'api_client.dart';
 
-
+/// `apiResource /depots` + settings, stock, géoloc, printer, CDF.
 class DepotService {
+  final ApiClient _api = ApiClient.instance;
 
-Future<List<Depot>> getAllDepots() async {
-    try{
-      final response = await AuthService().queryProtectedData("depots","GET") ;// await http.get(Uri.parse("$baseUrl/Depots"));
-        // print(response!.body);
-      if (response?.statusCode == 200)  {
-        final decoded = jsonDecode(response!.body);
-        print(decoded['data'].runtimeType);
-      // Vérifie si c'est une Map ou une List
-      if (decoded is Map<String, dynamic>) {
-        final depotsJson = decoded['data'] as List<dynamic>;
-        return DepotMapper.fromJsonList(depotsJson);
-      } else if (decoded is List<dynamic>) {
-        return DepotMapper.fromJsonList(decoded);
-      } else {
-        throw Exception("Format JSON inattendu ${decoded.runtimeType}");
+  Future<List<Depot>> getAllDepots() async {
+    final res = await _api.get('depots');
+    return DepotMapper.fromJsonList(res.data);
+  }
+
+  Future<Depot> getDepotById(int id) async {
+    final res = await _api.get('depots/$id');
+    return DepotMapper.fromJsonSingle({'data': res.data});
+  }
+
+  /// `GET /depots/meta` — types de dépôt pour les formulaires.
+  Future<List<Map<String, dynamic>>> getMeta() async {
+    final res = await _api.get('depots/meta');
+    return asList(res.data)
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  /// `POST /depots` — `{ user_id, libele }`.
+  Future<Depot> createDepot(Map<String, dynamic> depotData) async {
+    final res = await _api.post('depots', body: depotData);
+    return DepotMapper.fromJsonSingle({'data': res.data});
+  }
+
+  /// `PUT /depots/{id}` — `{ id, libele }`.
+  Future<Depot> updateDepot(int id, Map<String, dynamic> depotData) async {
+    final payload = {...depotData, 'id': id};
+    final res = await _api.put('depots/$id', body: payload);
+    return DepotMapper.fromJsonSingle({'data': res.data});
+  }
+
+  Future<void> deleteDepot(int id) async {
+    await _api.delete('depots/$id');
+  }
+
+  /// `GET /depots/{depot}/settings`.
+  Future<Map<String, dynamic>> getSettings(int depotId) async {
+    final res = await _api.get('depots/$depotId/settings');
+    return asMap(res.data) ?? {};
+  }
+
+  /// `GET /depots/{depot}/produits` — lignes `produitDepot` (qté dispo du dépôt).
+  Future<List<Produit>> getProduits(int depotId) async {
+    final res = await _api.get('depots/$depotId/produits');
+    final data = asMap(res.data);
+    final raw = data?['produits'] ?? data?['stock'] ?? res.data;
+    return asList(raw).whereType<Map>().map((row) {
+      final map = Map<String, dynamic>.from(row);
+      final nested = asMap(map['produit']);
+      if (nested == null) {
+        return Produit.fromJson(map);
       }
-
-        
-      } else {
-        throw Exception("Erreur API: ${response?.statusCode}");
-      }
-    } catch (e, stackTrace) {
-      print('Erreur lors du parsing des dépôts: $e');
-      debugPrintStack(label: 'Trace de l\'erreur', stackTrace: stackTrace);
-      return [];
-    }
+      return Produit.fromJson({
+        ...nested,
+        'quantite': map['quantite'] ?? nested['quantite'] ?? nested['quatité'],
+        'quatité': map['quantite'] ?? nested['quatité'] ?? nested['quantite'],
+      });
+    }).toList();
   }
 
- Future<Depot> getDepotById(int id) async {
-  // final response = await http.get(Uri.parse("$baseUrl/Depots/$id"));
-  final response = await AuthService().queryProtectedData("depots/$id","GET") ;// await http.get(Uri.parse("$baseUrl/Depots"));
-
-  // print("response brute : ${response.body}");
-  if (response?.statusCode == 200) {
-    final data = json.decode(response!.body);
-    final depotJson = data['data'];  
-    return DepotMapper.fromJsonSingle(depotJson);
-  } else {
-    throw Exception("Erreur API: ${response?.statusCode}");
-  }
-}
-
-  Future<Map<String, dynamic>> createDepot(Map<String, dynamic> depotData) async {
-    final response = await http.post(
-      Uri.parse("$baseUrl/Depots"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(depotData),
+  /// `PUT /depots/{depot}/geolocalisation/{action}` — action = `auto` | `insert`.
+  Future<void> updateGeolocalisation({
+    required int depotId,
+    required String action,
+    double? lonAuto,
+    double? latAuto,
+    double? lonM,
+    double? latM,
+  }) async {
+    await _api.put(
+      'depots/$depotId/geolocalisation/$action',
+      body: {
+        'lonAuto': lonAuto,
+        'latAuto': latAuto,
+        'lonM': lonM,
+        'latM': latM,
+      },
     );
-    if (response.statusCode == 201) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception("Erreur API: ${response.statusCode}");
-    }
   }
 
-  // PUT (mettre à jour un utilisateur)
-  Future<Map<String, dynamic>> updateDepot(int id, Map<String, dynamic>depotData) async {
-    final response = await http.put(
-      Uri.parse("$baseUrl/Depots/$id"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(depotData),
+  /// `PUT /depots/{depot}/transaction-money` — bascule `use_cdf`.
+  Future<void> toggleTransactionMoney(int depotId) async {
+    await _api.put(
+      'depots/$depotId/transaction-money',
+      body: {'depot_id': depotId},
     );
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception("Erreur API: ${response.statusCode}");
-    }
+  }
+
+  /// `PUT /depots/{depot}/printer` — `Pos` ↔ `Android`.
+  Future<void> togglePrinter(int depotId, String printer) async {
+    await _api.put(
+      'depots/$depotId/printer',
+      body: {'depot_id': depotId, 'printer': printer},
+    );
   }
 }

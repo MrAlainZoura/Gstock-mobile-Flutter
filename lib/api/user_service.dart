@@ -1,62 +1,41 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../models/user.dart';
 import '../mapper/user_mapper.dart';
-import '../utils/constants.dart';
-import 'auth_service.dart';
+import '../models/user.dart';
+import 'api_client.dart';
 
-
+/// `apiResource /users` + routes dépôt / mot de passe.
 class UserService {
-Future<List<User>> getAllUsers() async {
-    // final response = await http.get(Uri.parse("$baseUrl/users"));
-    final response = await AuthService().queryProtectedData("users","GET");
-    if (response?.statusCode == 200) {
-      final data = jsonDecode(response!.body);
-      // print(UserMapper.fromJsonList(data));
-      return UserMapper.fromJsonList(data);
-    } else {
-      throw Exception("Erreur API: ${response?.statusCode}");
-    }
+  final ApiClient _api = ApiClient.instance;
+
+  Future<List<User>> getAllUsers() async {
+    final res = await _api.get('users');
+    return UserMapper.fromJsonList(res.data);
   }
 
- Future<User> getUserById(int id) async {
-  
-  final response = await AuthService().queryProtectedData("users/$id","GET");
-  // final response = await http.get(Uri.parse("$baseUrl/users/$id"));
-  // print("response brute : ${response.body}");
-  if (response?.statusCode == 200) {
-    final data = json.decode(response!.body);
-    final userJson = data['data'];  
-    return UserMapper.fromJsonSingle(userJson);
-  } else {
-    throw Exception("Erreur API: ${response?.statusCode}");
-  }
-}
-
-  Future<Map<String, dynamic>> createUser(Map<String, dynamic> userData) async {
-    final response = await http.post(
-      Uri.parse("$baseUrl/users"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(userData),
-    );
-    if (response.statusCode == 201) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception("Erreur API: ${response.statusCode}");
-    }
+  Future<User> getUserById(int id) async {
+    final res = await _api.get('users/$id');
+    return UserMapper.fromJsonSingle({'data': res.data});
   }
 
-  // PUT (mettre à jour un utilisateur)
-  Future<Map<String, dynamic>> updateUser(int id, Map<String, dynamic> userData) async {
-    final response = await http.put(
-      Uri.parse("$baseUrl/users/$id"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(userData),
-    );
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception("Erreur API: ${response.statusCode}");
-    }
+  /// `GET /users/depot/{depot}` — utilisateurs affectés au dépôt.
+  Future<List<User>> getUsersByDepot(int depotId) async {
+    final res = await _api.get('users/depot/$depotId');
+    return UserMapper.fromJsonList(res.data);
+  }
+
+  /// `POST /users` — name, email, password obligatoires.
+  Future<User> createUser(Map<String, dynamic> userData) async {
+    final res = await _api.post('users', body: userData);
+    return UserMapper.fromJsonSingle({'data': res.data});
+  }
+
+  /// `PUT /users/{id}` — sans password ; name, email, id requis.
+  Future<User> updateUser(int id, Map<String, dynamic> userData) async {
+    final payload = {...userData, 'id': id};
+    final res = await _api.put('users/$id', body: payload);
+    return UserMapper.fromJsonSingle({'data': res.data});
+  }
+
+  Future<void> deleteUser(int id) async {
+    await _api.delete('users/$id');
   }
 }

@@ -1,77 +1,122 @@
 import 'package:flutter/material.dart';
-import 'show.dart';
+
 import '../../models/depot.dart';
+import '../../utils/access.dart';
+import '../../utils/app_theme.dart';
+import '../../widgets/account_actions.dart';
+import 'create.dart';
+import 'dashboard.dart';
+import 'show.dart';
 
 class DepotListPage extends StatelessWidget {
   final List<Depot> depots;
 
-  const DepotListPage({Key? key, required this.depots}) : super(key: key);
+  const DepotListPage({super.key, required this.depots});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Liste des dépôts")),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, // nombre de colonnes
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.2,
-        ),
-        itemCount: depots.length,
-        itemBuilder: (context, index) {
-          final depot = depots[index];
-          return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => DepotDetailPage(depot: depot),
-                ),
-              );
-            },
-            child: Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Text(
-                  depot.libele, // suppose que ton modèle a un champ "nom"
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+    return FutureBuilder<Access>(
+      future: Access.load(),
+      builder: (context, snapshot) {
+        final access = snapshot.data ?? Access();
+        final visible = access.visibleDepots(depots);
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text("Liste des dépôts"),
+            actions: accountAppBarActions(context, access),
+          ),
+          body: visible.isEmpty
+              ? Center(
+                  child: Text(
+                    access.isSimpleUser
+                        ? "Aucune affectation de dépôt (depotUser)"
+                        : "Aucun dépôt",
                   ),
-                  textAlign: TextAlign.center,
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.all(12),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1.2,
+                  ),
+                  itemCount: visible.length,
+                  itemBuilder: (context, index) {
+                    final depot = visible[index];
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DashboardPage(depot: depot),
+                          ),
+                        );
+                      },
+                      onLongPress: access.canEditDepot
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => DepotDetailPage(depot: depot),
+                                ),
+                              );
+                            }
+                          : null,
+                      child: Card(
+                        color: AppColors.black,
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.desktop_windows_outlined,
+                                  size: 40,
+                                  color: AppColors.white,
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  "${depot.type} ${depot.libele}",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.white,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ),
-            ),
-          );
-        },
-      ),
+          // Blade `hearder` : Depot+ réservé Super admin / Administrateur (quota).
+          floatingActionButton: access.canCreateDepot
+              ? FloatingActionButton(
+                  tooltip: 'Créer un dépôt',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DepotCreatePage(),
+                      ),
+                    );
+                  },
+                  child: const Icon(Icons.add),
+                )
+              : null,
+        );
+      },
     );
   }
 }
-
-// Text Text(
-//   String data, {
-//   Key? key,
-//   TextStyle? style,
-//   StrutStyle? strutStyle,
-//   TextAlign? textAlign,
-//   TextDirection? textDirection,
-//   Locale? locale,
-//   bool? softWrap,
-//   TextOverflow? overflow,
-//   double? textScaleFactor,
-//   TextScaler? textScaler,
-//   int? maxLines,
-//   String? semanticsLabel,
-//   String? semanticsIdentifier,
-//   TextWidthBasis? textWidthBasis,
-//   TextHeightBehavior? textHeightBehavior,
-//   Color? selectionColor,
-// })
-// Declared in Text in package:flutter/src/widgets/text.dart.
-

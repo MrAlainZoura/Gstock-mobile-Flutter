@@ -1,105 +1,128 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../utils/constants.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../models/user.dart';
+
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../mapper/user_mapper.dart';
+import '../models/user.dart';
+import '../utils/constants.dart';
+import 'api_client.dart';
+import 'api_response.dart';
 
+/// Auth JWT — le login n'utilise PAS l'enveloppe `{ success, data }`.
+/// Token à la racine : `token`. Refresh : `access_token`.
 class AuthService {
-    Future<bool> login(String email, String password) async {
-    final url = Uri.parse("$baseUrl/auth/login");
+  final ApiClient _api = ApiClient.instance;
 
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"email": email, "password": password}),
+  /// `POST /auth/login` (public).
+  /// Identifiant : email, nom ou téléphone (`login` + `password`).
+  /// Réponse : `{ user, token, role_user, token_type, expires_in }`.
+  Future<bool> login(String login, String password) async {
+    final res = await _api.post(
+      'auth/login',
+      body: {'login': login, 'password': password},
+      auth: false,
     );
-    
-    // print("reponse brute : ${response.body}");
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final token = data['token'];
-      final user = data['user'];
-      final userRole = data['role_user'];
 
-      // Sauvegarder le token localement
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString("jwt_token", token);
-        await prefs.setString("user", jsonEncode(user));
-        await prefs.setString("user_role", jsonEncode(userRole));
-
-      return true;
-    } else {
-      return false;
+    final payload = res.data;
+    if (payload is! Map) {
+      throw ApiException('Réponse login inattendue');
     }
+
+    final token = payload['token'] as String?;
+    if (token == null || token.isEmpty) {
+      throw ApiException('Token absent dans la réponse login');
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await _api.saveToken(token);
+    await prefs.setString(storageUserKey, jsonEncode(payload['user']));
+    await prefs.setString(storageRoleKey, jsonEncode(payload['role_user']));
+    return true;
   }
 
-  Future<String?> getToken() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getString("jwt_token");
-  }
+  Future<String?> getToken() => _api.getToken();
+
   Future<User?> user() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final userString = prefs.getString("user");
-    try{
-      if (userString != null) {
-        final user = jsonDecode(userString);
-        return UserMapper.fromJsonSingle(user);
-      }
-      return null;
+    final prefs = await SharedPreferences.getInstance();
+    final userString = prefs.getString(storageUserKey);
+    try {
+      if (userString == null) return null;
+      return UserMapper.fromJsonSingle(
+        jsonDecode(userString) as Map<String, dynamic>,
+      );
     } catch (e, stackTrace) {
-      print('Erreur lors du parsing: $e');
-      debugPrintStack(label: 'Trace de l\'erreur', stackTrace: stackTrace);
+      debugPrint('Erreur parsing user session: $e');
+      debugPrintStack(stackTrace: stackTrace);
       return null;
     }
   }
+
   Future<Role?> role() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final roleString = prefs.getString("user_role");
-    //  print(roleString);
-    try{
-      
-      return (roleString != null)
-                ? Role.fromJson(jsonDecode(roleString))
-                : null ;
+    final prefs = await SharedPreferences.getInstance();
+    final roleString = prefs.getString(storageRoleKey);
+    try {
+      if (roleString == null) return null;
+      return Role.fromJson(jsonDecode(roleString) as Map<String, dynamic>);
     } catch (e, stackTrace) {
-      print('Erreur lors du parsing: $e');
-      debugPrintStack(label: 'Trace de l\'erreur', stackTrace: stackTrace);
+      debugPrint('Erreur parsing rôle: $e');
+      debugPrintStack(stackTrace: stackTrace);
       return null;
     }
   }
 
-  Future<void> logout() async {
-    final response = await AuthService().queryProtectedData("auth/logout", "post");
-    if (response != null && response.statusCode == 200) {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.remove("jwt_token");
+  /// `GET /auth/me` — utilisateur + depot, depotUser.depot, souscription, user_role.role.
+  Future<User> me() async {
+    final res = await _api.get('auth/me');
+    if (res.data is Map) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(storageUserKey, jsonEncode(res.data));
     }
+    return UserMapper.fromJsonSingle({'data': res.data});
   }
 
-  // method global pour toute query securisee
-  Future<http.Response?> queryProtectedData(String endpoint, String method) async {
-    final token = await getToken();
-    final url = Uri.parse("$baseUrl/$endpoint");
-
-    final headers = {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer $token",
-    };
-    
-    switch (method.toUpperCase()) {
-      case "GET":
-        return await http.get(url, headers: headers);
-      case "POST":
-        return await http.post(url, headers: headers);
-      case "PUT":
-        return await http.put(url, headers: headers);
-      case "DELETE":
-        return await http.delete(url, headers: headers);
-      default:
-        print(Exception("Méthode HTTP non supportée : $method"));
-        return null;
+  /// `POST /auth/logout` puis nettoyage local.
+  Future<void> logout() async {
+    try {
+      await _api.post('auth/logout');
+    } catch (_) {
+      // On efface quand même la session locale.
     }
+    await _api.clearToken();
+  }
+
+  /// `PUT /auth/refresh` → `{ access_token, token_type, expires_in }`.
+  Future<String> refresh() async {
+    final res = await _api.put('auth/refresh');
+    final token = (res.data is Map ? res.data['access_token'] : null) as String?;
+    if (token == null) throw ApiException('Refresh token invalide');
+    await _api.saveToken(token);
+    return token;
+  }
+
+  /// `PUT /auth/password/{user}` — body : `holdPass`, `password`.
+  Future<void> updatePassword({
+    required int userId,
+    required String holdPass,
+    required String password,
+  }) async {
+    await _api.put(
+      'auth/password/$userId',
+      body: {'holdPass': holdPass, 'password': password},
+    );
+  }
+
+  /// `PUT /auth/password/{user}/reset` — remet le mot de passe à `0000`.
+  Future<void> resetPassword(int userId) async {
+    await _api.put('auth/password/$userId/reset');
+  }
+
+  /// Conservé pour compatibilité. Préférer [ApiClient].
+  Future<dynamic> queryProtectedData(
+    String endpoint,
+    String method, {
+    Map<String, dynamic>? body,
+  }) async {
+    return _api.request(method, endpoint, body: body);
   }
 }

@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'pages/user/user_index.dart'; 
-import 'pages/user/user_show.dart'; 
-// import 'pages/user_form.dart';
-// import 'pages/home.dart';
+
 import 'pages/login_page.dart';
-import 'pages/caroussel.dart';
+import 'utils/app_theme.dart';
 
 void main() {
   runApp(const MyApp());
@@ -16,14 +13,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false, // enlever la bannière rouge
+      debugShowCheckedModeBanner: false,
       title: 'GStock Mobile',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      // home: const CarouselExampleApp(), 
-      home: const LoginPage(), 
-      // home: const UserListScreen(), 
-      // home: const UserFormScreen(),
-      // home: const UserDetailScreen(userId: 1) ,
+      theme: buildAppTheme(),
+      home: const LoginPage(),
+      routes: {
+        '/login': (_) => const LoginPage(),
+      },
     );
   }
 }

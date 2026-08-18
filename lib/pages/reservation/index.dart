@@ -1,30 +1,30 @@
 import 'package:flutter/material.dart';
 
-import '../../api/vente_service.dart';
+import '../../api/reservation_service.dart';
 import '../../models/depot.dart';
-import '../../models/vente.dart';
+import '../../models/reservation.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/duree.dart';
 import '../../utils/period.dart';
-import 'create.dart';
 import 'show.dart';
 import 'trashed.dart';
 
-/// Liste `GET /ventes/depot/{depot}` — par défaut les ventes du jour.
-class VenteIndexPage extends StatefulWidget {
-  const VenteIndexPage({super.key, required this.depot});
+/// Liste `GET /reservations/depot/{depot}` — par défaut les réservations du jour.
+class ReservationIndexPage extends StatefulWidget {
+  const ReservationIndexPage({super.key, required this.depot});
 
   final Depot depot;
 
   @override
-  State<VenteIndexPage> createState() => _VenteIndexPageState();
+  State<ReservationIndexPage> createState() => _ReservationIndexPageState();
 }
 
-class _VenteIndexPageState extends State<VenteIndexPage> {
+class _ReservationIndexPageState extends State<ReservationIndexPage> {
   PeriodRange _period = PeriodRange.today();
   final _search = TextEditingController();
   String _query = '';
-  List<Vente> _ventes = [];
+  List<Reservation> _reservations = [];
   bool _loading = true;
   String? _error;
   Access _access = Access();
@@ -48,18 +48,18 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
     });
     try {
       final access = await Access.load();
-      final all = await VenteService().getByDepot(
+      final all = await ReservationService().getByDepot(
         widget.depot.id,
         from: _period.from,
         to: _period.to,
       );
       final filtered = all
-          .where((v) => v.createdAt == null || _period.contains(v.createdAt))
+          .where((r) => r.createdAt == null || _period.contains(r.createdAt))
           .toList();
       if (!mounted) return;
       setState(() {
         _access = access;
-        _ventes = filtered;
+        _reservations = filtered;
         _loading = false;
       });
     } catch (e) {
@@ -71,10 +71,10 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
     }
   }
 
-  List<Vente> get _rows {
+  List<Reservation> get _rows {
     final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return _ventes;
-    return _ventes.where((v) => v.searchText.contains(q)).toList();
+    if (q.isEmpty) return _reservations;
+    return _reservations.where((r) => r.searchText.contains(q)).toList();
   }
 
   @override
@@ -82,7 +82,7 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
     final rows = _rows;
     return Scaffold(
       appBar: AppBar(
-        title: Text("Ventes — ${widget.depot.libele}"),
+        title: Text("Réservations — ${widget.depot.libele}"),
         actions: [
           if (_access.canSeeCorbeille)
             IconButton(
@@ -91,7 +91,8 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => VenteTrashedPage(depot: widget.depot),
+                    builder: (_) =>
+                        ReservationTrashedPage(depot: widget.depot),
                   ),
                 );
                 if (mounted) _load();
@@ -134,7 +135,7 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  "${rows.length} vente(s)",
+                  "${rows.length} réservation(s)",
                   style: const TextStyle(
                     color: AppColors.gray,
                     fontWeight: FontWeight.w600,
@@ -149,7 +150,7 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
                 : _error != null
                     ? Center(child: Text("Erreur: $_error"))
                     : rows.isEmpty
-                        ? const Center(child: Text("Aucune vente"))
+                        ? const Center(child: Text("Aucune réservation"))
                         : RefreshIndicator(
                             onRefresh: _load,
                             child: ListView.separated(
@@ -158,13 +159,13 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
                               separatorBuilder: (_, __) =>
                                   const SizedBox(height: 8),
                               itemBuilder: (context, index) {
-                                final vente = rows[index];
+                                final row = rows[index];
                                 return Card(
                                   child: ListTile(
                                     title: Text(
-                                      vente.code.isEmpty
-                                          ? "Vente #${vente.id}"
-                                          : vente.code,
+                                      row.code.isEmpty
+                                          ? "Réservation #${row.id}"
+                                          : row.code,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -173,16 +174,11 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
                                       padding: const EdgeInsets.only(top: 4),
                                       child: Text(
                                         [
-                                          if (vente.hasCompassassion)
-                                            'Compassassion',
-                                          vente.productSummary,
-                                          if (vente.clientName.isNotEmpty)
-                                            vente.clientName,
-                                          vente.createdAt
-                                                  ?.toString()
-                                                  .split('.')
-                                                  .first ??
-                                              '',
+                                          row.productSummary,
+                                          if (row.clientName.isNotEmpty)
+                                            row.clientName,
+                                          if (row.periode != '—') row.periode,
+                                          formatDateTimeFr(row.dateDebut),
                                         ].join(' · '),
                                       ),
                                     ),
@@ -195,8 +191,8 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
                                       await Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (_) => VenteShowPage(
-                                            venteId: vente.id,
+                                          builder: (_) => ReservationShowPage(
+                                            reservationId: row.id,
                                           ),
                                         ),
                                       );
@@ -209,17 +205,6 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
                           ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => VenteCreatePage(depot: widget.depot),
-            ),
-          );
-        },
-        child: const Icon(Icons.add),
       ),
     );
   }

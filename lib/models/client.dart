@@ -1,15 +1,22 @@
+import '../utils/methode.dart';
+
 class Client {
   final int id;
+  /// En base : `name`. À l'écriture API : `nom_client`.
   final String? name;
   final String? prenom;
   final String? genre;
+  /// En base : `tel`. À l'écriture API : `contact_client`.
   final String? tel;
   final String? adresse;
   final String? createdAt;
   final String? updatedAt;
+  /// En base : `peice_identite`. À l'écriture API : `piece`.
   final String? pieceIdentite;
+  /// En base : `numero_piece`. À l'écriture API : `numeroPiece`.
   final String? numeroPiece;
   final String? imagePiece;
+  final int? ventesCount;
 
   Client({
     required this.id,
@@ -23,41 +30,37 @@ class Client {
     this.pieceIdentite,
     this.numeroPiece,
     this.imagePiece,
+    this.ventesCount,
   });
 
-  /// Factory pour créer un objet Client depuis un JSON
   factory Client.fromJson(Map<String, dynamic> json) {
     return Client(
-      id: json['id'] ?? 0,
-      name: json['name'],
-      prenom: json['prenom'],
-      genre: json['genre'],
-      tel: json['tel'],
-      adresse: json['adresse'],
-      createdAt: json['created_at'],
-      updatedAt: json['updated_at'],
-      pieceIdentite: json['peice_identite'],
-      numeroPiece: json['numero_piece'],
-      imagePiece: json['image_piece'],
+      id: asInt(json['id']),
+      name: (json['name'] ?? json['nom_client'])?.toString(),
+      prenom: json['prenom']?.toString(),
+      genre: json['genre']?.toString(),
+      tel: (json['tel'] ?? json['contact_client'])?.toString(),
+      adresse: json['adresse']?.toString(),
+      createdAt: json['created_at']?.toString(),
+      updatedAt: json['updated_at']?.toString(),
+      pieceIdentite: (json['peice_identite'] ?? json['piece'])?.toString(),
+      numeroPiece: (json['numero_piece'] ?? json['numeroPiece'])?.toString(),
+      imagePiece: json['image_piece']?.toString(),
+      ventesCount: json['ventes_count'] != null ? asInt(json['ventes_count']) : null,
     );
   }
 
-  /// Convertir un objet Client en JSON
-  Map<String, dynamic> toJson() {
+  /// Body `PUT /clients/{id}` (JSON ou multipart).
+  Map<String, dynamic> toUpdateJson({required int depotId}) {
     return {
-      'id': id,
-      'name': name,
+      'depot_id': depotId,
+      'nom_client': name,
       'prenom': prenom,
-      'genre': genre,
-      'tel': tel,
+      'contact_client': tel,
       'adresse': adresse,
-      'created_at': createdAt,
-      'updated_at': updatedAt,
-      'peice_identite': pieceIdentite,
-      'numero_piece': numeroPiece,
-      'image_piece': imagePiece,
+      'genre': genre,
+      'piece': pieceIdentite,
+      'numeroPiece': numeroPiece,
     };
   }
-
-  
 }

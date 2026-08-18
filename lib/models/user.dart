@@ -1,13 +1,15 @@
-import 'depot.dart';
 import '../mapper/depot_mapper.dart';
+import '../utils/methode.dart';
+import 'depot.dart';
+import 'depot_user.dart';
 
 class User {
   final int id;
   final String name;
   final String email;
   final DateTime? emailVerifiedAt;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
   final String? genre;
   final String? naissance;
   final String? fonction;
@@ -19,18 +21,19 @@ class User {
   final String? prenom;
   final String? image;
   final DateTime? deletedAt;
-  final List<Depot>? depot;  
-  final List<dynamic>? depotUser; 
-  final List<dynamic>? souscription; 
-  final UserRole? userRole; 
+  final List<Depot>? depot;
+  /// Affectations : relation `depotUser` (`depot_users.user_id` → `depot`).
+  final List<DepotUser> depotUser;
+  final List<dynamic>? souscription;
+  final UserRole? userRole;
 
   User({
     required this.id,
     required this.name,
     required this.email,
     this.emailVerifiedAt,
-    required this.createdAt,
-    required this.updatedAt,
+    this.createdAt,
+    this.updatedAt,
     this.genre,
     this.naissance,
     this.fonction,
@@ -43,60 +46,83 @@ class User {
     this.image,
     this.deletedAt,
     this.depot,
-    this.depotUser,
+    this.depotUser = const [],
     this.souscription,
     this.userRole,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id          : json['id'],
-      name        : json['name'],
-      email       : json['email'],
-      emailVerifiedAt: json['email_verified_at'] != null ? DateTime.parse(json['email_verified_at']) : null,
-      createdAt   : DateTime.parse(json['created_at']),
-      updatedAt   : DateTime.parse(json['updated_at']),
-      genre       : json['genre'],
-      naissance   : json['naissance'],
-      fonction    : json['fonction'],
-      niveauEtude : json['niveauEtude'],
-      option      : json['option'],
-      adresse     : json['adresse'],
-      tel         : json['tel'],
-      postnom     : json['postnom'],
-      prenom      : json['prenom'],
-      image       : json['image'],
-      deletedAt   : json['deleted_at'] != null ? DateTime.parse(json['deleted_at']) : null,
-      depot       : (json['depot'] != null && json['depot'] is List)
-                    ? DepotMapper.fromJsonList(json['depot'] as List<dynamic>)
-                    : null,
-      depotUser   : json['depotUser'] ?? [],
-      souscription: json['souscription'] ?? [],
-      
-      userRole    : json['user_role'] != null
-                    ? UserRole.fromJson(json['user_role'])
-                    : null
-       );
+      id: asInt(json['id']),
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      emailVerifiedAt: asDateTime(json['email_verified_at']),
+      createdAt: asDateTime(json['created_at']),
+      updatedAt: asDateTime(json['updated_at']),
+      genre: json['genre']?.toString(),
+      naissance: json['naissance']?.toString(),
+      fonction: json['fonction']?.toString(),
+      niveauEtude: json['niveauEtude']?.toString(),
+      option: json['option']?.toString(),
+      adresse: json['adresse']?.toString(),
+      tel: json['tel']?.toString(),
+      postnom: json['postnom']?.toString(),
+      prenom: json['prenom']?.toString(),
+      image: json['image']?.toString(),
+      deletedAt: asDateTime(json['deleted_at']),
+      depot: (json['depot'] is List)
+          ? DepotMapper.fromJsonList(json['depot'] as List<dynamic>)
+          : null,
+      depotUser: DepotUser.listFrom(json['depotUser'] ?? json['depot_user']),
+      souscription: asList(json['souscription']),
+      userRole: asMap(json['user_role']) != null
+          ? UserRole.fromJson(asMap(json['user_role'])!)
+          : null,
+    );
   }
 
-  Map<String, dynamic> toJson() {
+  /// Dépôts d'affectation (`dashboard.blade.php` : `$user->depotUser` → `$v->depot`).
+  List<Depot> assignedDepots([List<Depot> catalog = const []]) {
+    final result = <Depot>[];
+    final seen = <int>{};
+    for (final row in depotUser) {
+      final resolved = row.resolve(catalog);
+      if (resolved != null && seen.add(resolved.id)) {
+        result.add(resolved);
+      }
+    }
+    return result;
+  }
+  Map<String, dynamic> toCreateJson({required String password}) {
     return {
-      "id": id,
-      "name": name,
-      "email": email,
-      "genre": genre,
-      "naissance": naissance,
-      "fonction": fonction,
-      "niveauEtude": niveauEtude,
-      "option": option,
-      "adresse": adresse,
-      "tel": tel,
-      "postnom": postnom,
-      "prenom": prenom,
-      "image": image,
-      "created_at": createdAt,
-      "updated_at": updatedAt,
-      "deleted_at": deletedAt,
+      'name': name,
+      'email': email,
+      'password': password,
+      'genre': genre,
+      'naissance': naissance,
+      'fonction': fonction,
+      'niveauEtude': niveauEtude ?? '',
+      'option': option ?? '',
+      'adresse': adresse ?? '',
+      'tel': tel,
+    };
+  }
+
+  /// Body `PUT /users/{id}` : name, email, id requis — pas de password.
+  Map<String, dynamic> toUpdateJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'genre': genre,
+      'naissance': naissance,
+      'fonction': fonction,
+      'niveauEtude': niveauEtude,
+      'option': option,
+      'adresse': adresse,
+      'tel': tel,
+      'postnom': postnom,
+      'prenom': prenom,
     };
   }
 }
@@ -105,60 +131,54 @@ class UserRole {
   final int id;
   final int userId;
   final int roleId;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
   final Role? role;
 
   UserRole({
     required this.id,
     required this.userId,
     required this.roleId,
-    required this.createdAt,
-    required this.updatedAt,
-    this.role
+    this.createdAt,
+    this.updatedAt,
+    this.role,
   });
 
-   factory UserRole.fromJson(Map<String, dynamic> json) {
+  factory UserRole.fromJson(Map<String, dynamic> json) {
     return UserRole(
-      id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
-      userId: json['user_id'] is int ? json['user_id'] : int.parse(json['user_id'].toString()),
-      roleId: json['role_id'] is int ? json['role_id'] : int.parse(json['role_id'].toString()),
-      role: json['role'] != null ? Role.fromJson(json['role']) : null,
-      createdAt: DateTime.parse(json['created_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
+      id: asInt(json['id']),
+      userId: asInt(json['user_id']),
+      roleId: asInt(json['role_id']),
+      role: asMap(json['role']) != null ? Role.fromJson(asMap(json['role'])!) : null,
+      createdAt: asDateTime(json['created_at']),
+      updatedAt: asDateTime(json['updated_at']),
     );
   }
-
-
-  Map<String, dynamic> toJson() {
-    return {
-      "id": id,
-      'userId':userId,
-      "roleId":roleId,
-      "role": role
-      };
-    }
 }
 
+/// Rôle renvoyé à la racine du login (`role_user`) : Administrateur | Super admin | user.
 class Role {
   final int id;
   final String libele;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   Role({
     required this.id,
     required this.libele,
-    required this.createdAt,
-    required this.updatedAt,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory Role.fromJson(Map<String, dynamic> json) {
     return Role(
-      id: json['id'],
-      libele: json['libele'],
-      createdAt: DateTime.parse(json['created_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
+      id: asInt(json['id']),
+      libele: json['libele']?.toString() ?? '',
+      createdAt: asDateTime(json['created_at']),
+      updatedAt: asDateTime(json['updated_at']),
     );
   }
+
+  bool get isAdmin => libele == 'Administrateur' || libele == 'Super admin';
+  bool get isSuperAdmin => libele == 'Super admin';
 }

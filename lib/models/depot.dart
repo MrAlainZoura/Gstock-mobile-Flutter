@@ -1,23 +1,28 @@
+import '../utils/methode.dart';
+
 class Depot {
   final int id;
-  final String userId;
+  final int userId;
   final String libele;
-  final String? logo; 
-  final String? email; 
-  final String? contact1; 
-  final String? contact; 
-  final String? cpostal; 
-  final String? pays; 
-  final String? province; 
-  final String? ville; 
-  final String? avenue; 
-  final String? idNational; 
-  final String? numImpot; 
-  final String? autres; 
-  final String? remboursementDelay; 
-  final double? lat; 
-  final double? lon; 
+  final String? logo;
+  final String? email;
+  final String? contact1;
+  final String? contact;
+  final String? cpostal;
+  final String? pays;
+  final String? province;
+  final String? ville;
+  final String? avenue;
+  final String? idNational;
+  final String? numImpot;
+  final String? autres;
+  final String? remboursementDelay;
+  final double? lat;
+  final double? lon;
   final String type;
+  /// Si true, les paiements / dépenses sont traités en CDF (sans multiplier le taux).
+  final bool useCdf;
+  final String? printer;
 
   Depot({
     required this.id,
@@ -38,54 +43,48 @@ class Depot {
     this.remboursementDelay,
     this.lat,
     this.lon,
-    required this.type,
+    this.type = 'Shop',
+    this.useCdf = false,
+    this.printer,
   });
 
   factory Depot.fromJson(Map<String, dynamic> json) {
     return Depot(
-      id: json['id'],
-      userId: json['user_id'].toString(),
-      libele: json['libele'],
-      logo: json['logo'],
-      email: json['email'],
-      contact1: json['contact1'],
-      contact: json['contact'],
-      cpostal: json['cpostal'],
-      pays: json['pays'],
-      province: json['province'],
-      ville: json['ville'],
-      avenue: json['avenue'],
-      idNational: json['idNational'],
-      numImpot: json['numImpot'],
-      autres: json['autres'],
-      remboursementDelay: json['remboursement_delay'],
-      lat: json['lat'] != null ? double.parse(json['lat']) : null, 
-      lon: json['lon'] != null ? double.parse(json['lon']) : null, 
-      type: json['type'],
+      id: asInt(json['id']),
+      userId: asInt(json['user_id']),
+      libele: json['libele']?.toString() ?? '',
+      logo: json['logo']?.toString(),
+      email: json['email']?.toString(),
+      contact1: json['contact1']?.toString(),
+      contact: json['contact']?.toString(),
+      cpostal: json['cpostal']?.toString(),
+      pays: json['pays']?.toString(),
+      province: json['province']?.toString(),
+      ville: json['ville']?.toString(),
+      avenue: json['avenue']?.toString(),
+      idNational: json['idNational']?.toString(),
+      numImpot: json['numImpot']?.toString(),
+      autres: json['autres']?.toString(),
+      remboursementDelay: json['remboursement_delay']?.toString(),
+      lat: asDouble(json['lat']),
+      lon: asDouble(json['lon']),
+      type: json['type']?.toString().isNotEmpty == true
+          ? json['type'].toString()
+          : 'Shop',
+      useCdf: json['use_cdf'] == true || json['use_cdf'] == 1,
+      printer: json['printer']?.toString(),
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'user_id': userId,
-      'libele': libele,
-      'logo': logo,
-      'email': email,
-      'contact1': contact1,
-      'contact': contact,
-      'cpostal': cpostal,
-      'pays': pays,
-      'province': province,
-      'ville': ville,
-      'avenue': avenue,
-      'idNational': idNational,
-      'numImpot': numImpot,
-      'autres': autres,
-      'remboursement_delay': remboursementDelay,
-      'lat': lat,
-      'lon': lon,
-      'type': type,
-    };
-  }
+  /// Body `POST /depots` : `user_id` + `libele`.
+  Map<String, dynamic> toCreateJson() => {
+        'user_id': userId,
+        'libele': libele,
+      };
+
+  /// Body `PUT /depots/{id}` : `id` + `libele`.
+  Map<String, dynamic> toUpdateJson() => {
+        'id': id,
+        'libele': libele,
+      };
 }
