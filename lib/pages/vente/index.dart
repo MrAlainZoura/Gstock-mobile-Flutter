@@ -10,6 +10,7 @@ import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/period.dart';
 import 'create.dart';
+import 'compassassion_index.dart';
 import 'creances.dart';
 import 'show.dart';
 import 'trashed.dart';
@@ -91,9 +92,20 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
         actions: [
           PopupMenuButton<String>(
             tooltip: 'Menu',
-            icon: const Icon(Icons.more_vert),
+            icon: const Icon(Icons.more_vert, color: AppColors.white),
+            color: AppColors.black,
+            surfaceTintColor: AppColors.black,
             onSelected: (value) async {
-              if (value == 'tranches') {
+              if (value == 'compassassions') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        CompassassionIndexPage(depot: widget.depot),
+                  ),
+                );
+                if (mounted) _load();
+              } else if (value == 'tranches') {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -113,12 +125,32 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
             },
             itemBuilder: (context) => [
               const PopupMenuItem(
+                value: 'compassassions',
+                child: Row(
+                  children: [
+                    Icon(Icons.swap_horiz, size: 20, color: AppColors.white),
+                    SizedBox(width: 12),
+                    Text(
+                      'Compassassions',
+                      style: TextStyle(color: AppColors.white),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
                 value: 'tranches',
                 child: Row(
                   children: [
-                    Icon(Icons.payments_outlined, size: 20),
+                    Icon(
+                      Icons.payments_outlined,
+                      size: 20,
+                      color: AppColors.white,
+                    ),
                     SizedBox(width: 12),
-                    Text('Ventes par tranche'),
+                    Text(
+                      'Ventes par tranche',
+                      style: TextStyle(color: AppColors.white),
+                    ),
                   ],
                 ),
               ),
@@ -127,9 +159,16 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
                   value: 'corbeille',
                   child: Row(
                     children: [
-                      Icon(Icons.delete_outline, size: 20),
+                      Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: AppColors.white,
+                      ),
                       SizedBox(width: 12),
-                      Text('Corbeille'),
+                      Text(
+                        'Corbeille',
+                        style: TextStyle(color: AppColors.white),
+                      ),
                     ],
                   ),
                 ),

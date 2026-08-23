@@ -134,6 +134,7 @@ class VenteLigne {
     required this.prixU,
     required this.prixT,
     this.unite,
+    this.produitId,
   });
 
   final String libele;
@@ -141,6 +142,18 @@ class VenteLigne {
   final num prixU;
   final num prixT;
   final String? unite;
+  final int? produitId;
+
+  /// Unité « pièce » : l’ancien article est écarté de la vente à l’échange.
+  bool get isPiece {
+    final u = (unite ?? '').trim().toLowerCase();
+    return u == 'pc' ||
+        u == 'pcs' ||
+        u == 'piece' ||
+        u == 'pièce' ||
+        u == 'pieces' ||
+        u == 'pièces';
+  }
 }
 
 class MoneyPair {
@@ -269,6 +282,7 @@ List<VenteLigne> _parseLignes(List<dynamic>? raw) {
       prixU: unit,
       prixT: total,
       unite: produit?['unite']?.toString(),
+      produitId: asInt(line['produit_id'] ?? produit?['id']),
     );
   }).toList();
 }

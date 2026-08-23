@@ -7,6 +7,7 @@ import '../../models/vente.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/confirm_dialog.dart';
+import 'compassassion_create.dart';
 import 'create.dart';
 
 /// Détail `GET /ventes/{id}` + paiement créance.
@@ -182,6 +183,31 @@ class _VenteShowPageState extends State<VenteShowPage> {
                   ),
                   const SizedBox(height: 12),
                   _ProductsCard(vente: vente),
+                  if (!vente.hasCompassassion) ...[
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CompassassionCreatePage(
+                              venteId: widget.venteId,
+                              depot: widget.depot,
+                            ),
+                          ),
+                        );
+                        if (mounted) await _load();
+                      },
+                      icon: const Icon(Icons.swap_horiz),
+                      label: const Text('Compassassion (échanger produit)'),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Échange l’article de cette vente contre un nouveau. '
+                      'Si l’ancien était une pièce, il est écarté de la vente.',
+                      style: TextStyle(fontSize: 12, color: AppColors.gray),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   _TotalsCard(vente: vente),
                   if (vente.reste > 0) ...[
@@ -287,17 +313,25 @@ class _ProductsCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              hasComp ? "Produits (compassassion)" : "Produits",
+              hasComp
+                  ? 'Nouveau produit (compassassion)'
+                  : 'Produits (venteProduit)',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             if (hasComp) ...[
-              ...vente.lignesCompassassion.map((l) => _ligne(vente, l)),
+              if (vente.lignesCompassassion.isEmpty)
+                const Text(
+                  'Aucun produit compassassion',
+                  style: TextStyle(color: AppColors.gray),
+                )
+              else
+                ...vente.lignesCompassassion.map((l) => _ligne(vente, l)),
               const SizedBox(height: 12),
               const Divider(),
               const SizedBox(height: 8),
               const Text(
-                "Article vente précédente",
+                'Produit vente initiale (venteProduit)',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -307,14 +341,14 @@ class _ProductsCard extends StatelessWidget {
               const SizedBox(height: 4),
               if (vente.lignes.isEmpty)
                 const Text(
-                  "Aucun produit précédent",
+                  'Aucun produit venteProduit',
                   style: TextStyle(color: AppColors.gray),
                 )
               else
                 ...vente.lignes.map((l) => _ligne(vente, l, referenced: true)),
             ] else if (vente.lignes.isEmpty)
               const Text(
-                "Aucun produit",
+                'Aucun produit',
                 style: TextStyle(color: AppColors.gray),
               )
             else

@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../../models/depot.dart';
 import '../../models/produit.dart';
 import '../../utils/app_theme.dart';
+import '../produit/show.dart';
 
 enum StockSort { qtyAsc, qtyDesc, nameAsc, nameDesc, categorie, marque }
 
 /// Liste stock type datatable : recherche, filtres, tri (qté 0 → max par défaut).
 class StockList extends StatefulWidget {
-  const StockList({super.key, required this.produits});
+  const StockList({
+    super.key,
+    required this.produits,
+    this.depot,
+    this.onChanged,
+  });
 
   final List<Produit> produits;
+  final Depot? depot;
+  final VoidCallback? onChanged;
 
   @override
   State<StockList> createState() => _StockListState();
@@ -234,6 +243,18 @@ class _StockListState extends State<StockList> {
                         color: qte <= 0 ? AppColors.red : AppColors.black,
                       ),
                     ),
+                    onTap: () async {
+                      final changed = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ProduitShowPage(
+                            produit: produit,
+                            depot: widget.depot,
+                          ),
+                        ),
+                      );
+                      if (changed == true) widget.onChanged?.call();
+                    },
                   ),
                 );
               },

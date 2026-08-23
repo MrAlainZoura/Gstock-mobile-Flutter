@@ -92,7 +92,9 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
         actions: [
           PopupMenuButton<String>(
             tooltip: 'Menu',
-            icon: const Icon(Icons.more_vert),
+            icon: const Icon(Icons.more_vert, color: AppColors.white),
+            color: AppColors.black,
+            surfaceTintColor: AppColors.black,
             onSelected: (value) async {
               if (value == 'tranches') {
                 await Navigator.push(
@@ -119,9 +121,16 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
                 value: 'tranches',
                 child: Row(
                   children: [
-                    Icon(Icons.payments_outlined, size: 20),
+                    Icon(
+                      Icons.payments_outlined,
+                      size: 20,
+                      color: AppColors.white,
+                    ),
                     SizedBox(width: 12),
-                    Text('Réservations par tranche'),
+                    Text(
+                      'Réservations par tranche',
+                      style: TextStyle(color: AppColors.white),
+                    ),
                   ],
                 ),
               ),
@@ -130,9 +139,16 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
                   value: 'corbeille',
                   child: Row(
                     children: [
-                      Icon(Icons.delete_outline, size: 20),
+                      Icon(
+                        Icons.delete_outline,
+                        size: 20,
+                        color: AppColors.white,
+                      ),
                       SizedBox(width: 12),
-                      Text('Corbeille'),
+                      Text(
+                        'Corbeille',
+                        style: TextStyle(color: AppColors.white),
+                      ),
                     ],
                   ),
                 ),

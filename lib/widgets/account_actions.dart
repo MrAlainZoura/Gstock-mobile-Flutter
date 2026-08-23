@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../api/auth_service.dart';
+import '../pages/user/profil.dart';
 import '../pages/user/user_index.dart';
-import '../pages/user/user_show.dart';
 import '../utils/access.dart';
+import '../utils/app_theme.dart';
 
 /// Menu profil (haut) : profil / utilisateurs + déconnexion.
 List<Widget> accountAppBarActions(
@@ -14,7 +15,9 @@ List<Widget> accountAppBarActions(
   return [
     PopupMenuButton<String>(
       tooltip: 'Profil',
-      icon: const Icon(Icons.person),
+      icon: const Icon(Icons.person, color: AppColors.white),
+      color: AppColors.black,
+      surfaceTintColor: AppColors.black,
       onSelected: (value) async {
         if (value == 'users') {
           Navigator.push(
@@ -27,7 +30,10 @@ List<Widget> accountAppBarActions(
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => UserDetailScreen(userId: access.user!.id),
+              builder: (_) => ProfilPage(
+                userId: access.user!.id,
+                depotId: depotId,
+              ),
             ),
           );
         } else if (value == 'logout') {
@@ -70,9 +76,9 @@ class _MenuRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 20),
+        Icon(icon, size: 20, color: AppColors.white),
         const SizedBox(width: 12),
-        Text(label),
+        Text(label, style: const TextStyle(color: AppColors.white)),
       ],
     );
   }

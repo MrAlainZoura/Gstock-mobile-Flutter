@@ -5,12 +5,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/constants.dart';
 import 'api_response.dart';
+import 'session_guard.dart';
 
 /// Client HTTP unique pour `{baseUrl}` :
 /// JWT Bearer, JSON, refresh automatique sur 401, multipart pour les uploads.
 class ApiClient {
   ApiClient._();
   static final ApiClient instance = ApiClient._();
+
+  Future<void> _sessionExpired() async {
+    await clearToken();
+    await redirectToLoginOnSessionExpired();
+  }
 
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -95,7 +101,7 @@ class ApiClient {
         if (refresh.statusCode == 200) {
           final decoded = jsonDecode(refresh.body);
           final newToken = decoded['access_token'] as String?;
-          if (newToken != null) {
+          if (newToken != null && newToken.isNotEmpty) {
             await saveToken(newToken);
             response = await _send(
               method: method,
@@ -103,12 +109,17 @@ class ApiClient {
               body: body,
               auth: true,
             );
+            if (response.statusCode == 401) {
+              await _sessionExpired();
+            }
+          } else {
+            await _sessionExpired();
           }
         } else {
-          await clearToken();
+          await _sessionExpired();
         }
       } catch (_) {
-        await clearToken();
+        await _sessionExpired();
       }
     }
 
@@ -188,8 +199,14 @@ class ApiClient {
     if (decoded is Map<String, dynamic> && decoded.containsKey('success')) {
       final api = ApiResponse.fromJson(decoded, statusCode: response.statusCode);
       if (!api.success || response.statusCode >= 400) {
+        final message =
+            api.message ?? _messageFromErrors(api.errors) ?? 'Erreur API';
+        if (_isAuthFailure(response.statusCode, message, decoded)) {
+          // ignore: discarded_futures
+          _sessionExpired();
+        }
         throw ApiException(
-          api.message ?? _messageFromErrors(api.errors) ?? 'Erreur API',
+          message,
           statusCode: response.statusCode,
           errors: api.errors ?? decoded,
         );
@@ -200,10 +217,16 @@ class ApiClient {
     if (response.statusCode >= 400) {
       final message = decoded is Map
           ? (decoded['message'] as String?) ??
+              (decoded['error'] as String?) ??
               _messageFromErrors(decoded['errors'] ?? decoded)
           : null;
+      final resolved = message ?? 'Erreur API (${response.statusCode})';
+      if (_isAuthFailure(response.statusCode, resolved, decoded)) {
+        // ignore: discarded_futures
+        _sessionExpired();
+      }
       throw ApiException(
-        message ?? 'Erreur API (${response.statusCode})',
+        resolved,
         statusCode: response.statusCode,
         errors: decoded,
       );
@@ -225,5 +248,22 @@ class ApiClient {
       return first.toString();
     }
     return null;
+  }
+
+  bool _isAuthFailure(int statusCode, String message, dynamic decoded) {
+    if (statusCode == 401) return true;
+    final lower = message.toLowerCase();
+    if (lower.contains('token expiré') ||
+        lower.contains('token expire') ||
+        lower.contains('token invalide') ||
+        lower.contains('token absent') ||
+        lower.contains('unauthenticated')) {
+      return true;
+    }
+    if (decoded is Map) {
+      final err = decoded['error']?.toString().toLowerCase() ?? '';
+      if (err.contains('token')) return true;
+    }
+    return false;
   }
 }

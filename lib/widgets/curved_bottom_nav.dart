@@ -174,8 +174,8 @@ class _BarItem extends StatelessWidget {
               item.icon,
               size: 22,
               color: item.enabled
-                  ? AppColors.gray
-                  : AppColors.gray.withValues(alpha: 0.4),
+                  ? AppColors.white
+                  : AppColors.white.withValues(alpha: 0.35),
             ),
             const SizedBox(height: 4),
             Text(
@@ -185,8 +185,8 @@ class _BarItem extends StatelessWidget {
               style: TextStyle(
                 fontSize: 10,
                 color: item.enabled
-                    ? AppColors.gray
-                    : AppColors.gray.withValues(alpha: 0.4),
+                    ? AppColors.white
+                    : AppColors.white.withValues(alpha: 0.35),
               ),
             ),
           ],

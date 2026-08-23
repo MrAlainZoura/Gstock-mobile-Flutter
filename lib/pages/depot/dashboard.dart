@@ -15,6 +15,7 @@ import '../../widgets/counts_bar_chart.dart';
 import '../../widgets/curved_bottom_nav.dart';
 import '../reservation/index.dart';
 import '../vente/index.dart';
+import '../appro/index.dart';
 import 'stock_list.dart';
 
 /// Dashboard dépôt — `GET /dashboard` + rapport mensuel.
@@ -125,20 +126,20 @@ class _DashboardPageState extends State<DashboardPage> {
   void _onNav(int i, Depot? depot) {
     setState(() => _navIndex = i);
     if (depot == null || i == 0 || i == 1) return;
+    Future<void> open(Widget page) async {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+      if (mounted) setState(() => _navIndex = 0);
+    }
+
     switch (i) {
       case 2:
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => VenteIndexPage(depot: depot)),
-        );
+        open(ApproIndexPage(depot: depot));
         break;
       case 3:
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ReservationIndexPage(depot: depot),
-          ),
-        );
+        open(VenteIndexPage(depot: depot));
+        break;
+      case 4:
+        open(ReservationIndexPage(depot: depot));
         break;
     }
   }
@@ -177,7 +178,11 @@ class _DashboardPageState extends State<DashboardPage> {
               : RefreshIndicator(
                   onRefresh: _load,
                   child: _navIndex == 1
-                      ? StockList(produits: _stock)
+                      ? StockList(
+                          produits: _stock,
+                          depot: depot,
+                          onChanged: _load,
+                        )
                       : SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
@@ -227,6 +232,10 @@ class _DashboardPageState extends State<DashboardPage> {
           const CurvedNavItem(
             icon: Icons.inventory,
             label: "Stock",
+          ),
+          const CurvedNavItem(
+            icon: Icons.local_shipping_outlined,
+            label: "Appro.",
           ),
           const CurvedNavItem(
             icon: Icons.shopping_cart,

@@ -82,9 +82,14 @@ ThemeData buildAppTheme() {
       foregroundColor: AppColors.white,
     ),
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: AppColors.white,
-      selectedItemColor: AppColors.blue,
-      unselectedItemColor: AppColors.gray,
+      backgroundColor: AppColors.black,
+      selectedItemColor: AppColors.white,
+      unselectedItemColor: AppColors.white,
+    ),
+    popupMenuTheme: const PopupMenuThemeData(
+      color: AppColors.black,
+      textStyle: TextStyle(color: AppColors.white),
+      iconColor: AppColors.white,
     ),
   );
 }
