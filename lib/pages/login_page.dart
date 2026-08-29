@@ -5,7 +5,7 @@ import '../api/auth_service.dart';
 import '../api/dashboard_service.dart';
 import '../utils/access.dart';
 import '../utils/app_theme.dart';
-import 'depot/index.dart';
+import 'auth_gate.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,10 +17,10 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _loginController = TextEditingController(
-    text: "a.tshiyanze@gmail.com",
+    text: "",
   );
   final TextEditingController _passwordController = TextEditingController(
-    text: "0000",
+    text: "",
   );
 
   bool _isLoading = false;
@@ -54,7 +54,7 @@ class _LoginPageState extends State<LoginPage> {
       );
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => DepotListPage(depots: depots)),
+        MaterialPageRoute(builder: (_) => postLoginHome(depots)),
       );
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -98,21 +98,15 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    Icons.inventory_2_outlined,
-                    size: 56,
-                    color: AppColors.white,
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    "GStock",
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.white,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'assets/branding/app_icon.jpeg',
+                      height: 120,
+                      fit: BoxFit.contain,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 16),
                   const Text(
                     "Connexion",
                     style: TextStyle(fontSize: 16, color: AppColors.gray),

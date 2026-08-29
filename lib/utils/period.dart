@@ -81,12 +81,16 @@ class PeriodFilterBar extends StatelessWidget {
     super.key,
     required this.value,
     required this.onChanged,
+    /// Abonnement inactif → uniquement le mois en cours.
+    this.lockedToMonth = false,
   });
 
   final PeriodRange value;
   final ValueChanged<PeriodRange> onChanged;
+  final bool lockedToMonth;
 
   Future<void> _pickCustom(BuildContext context) async {
+    if (lockedToMonth) return;
     final start = await showDatePicker(
       context: context,
       initialDate: value.from,
@@ -108,6 +112,24 @@ class PeriodFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (lockedToMonth) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _chip(
+            label: 'Mois en cours',
+            selected: true,
+            onTap: () => onChanged(PeriodRange.month()),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Abonnement inactif : historique limité au mois en cours',
+            style: TextStyle(fontSize: 12, color: AppColors.gray),
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

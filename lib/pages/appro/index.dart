@@ -12,6 +12,7 @@ import '../../utils/app_theme.dart';
 import '../../utils/methode.dart';
 import '../../utils/period.dart';
 import 'create.dart';
+import '../transfert/index.dart';
 
 /// Liste `GET /approvisionnements/depot/{depot}` — défaut : mois en cours.
 class ApproIndexPage extends StatefulWidget {
@@ -35,6 +36,9 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
   @override
   void initState() {
     super.initState();
+    if (!widget.depot.abonnementCurrent) {
+      _period = PeriodRange.month();
+    }
     _load();
   }
 
@@ -132,6 +136,37 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
         title: Text('Approvisionnements — ${widget.depot.libele}'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Menu',
+            icon: const Icon(Icons.more_vert, color: AppColors.white),
+            color: AppColors.black,
+            surfaceTintColor: AppColors.black,
+            onSelected: (value) async {
+              if (value == 'transferts') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TransfertIndexPage(depot: widget.depot),
+                  ),
+                );
+                if (mounted) _load();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'transferts',
+                child: Row(
+                  children: [
+                    Icon(Icons.swap_horiz, size: 20, color: AppColors.white),
+                    SizedBox(width: 12),
+                    Text('Transferts', style: TextStyle(color: AppColors.white)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -142,6 +177,7 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
               children: [
                 PeriodFilterBar(
                   value: _period,
+                  lockedToMonth: _access.getPeriodLockedToMonth(widget.depot),
                   onChanged: (range) {
                     setState(() => _period = range);
                   },
@@ -263,32 +299,38 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final user = await AuthService().user();
-          if (!context.mounted) return;
-          if (user == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Session utilisateur introuvable')),
-            );
-            return;
-          }
-          final ok = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ApproCreatePage(
-                depot: widget.depot,
-                userId: user.id,
-              ),
-            ),
-          );
-          if (ok == true && mounted) {
-            unawaited(DepotCatalogStore.refreshInBackground(widget.depot.id));
-            await _load();
-          }
-        },
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _access.canWrite(widget.depot)
+          ? FloatingActionButton(
+              onPressed: () async {
+                final user = await AuthService().user();
+                if (!context.mounted) return;
+                if (user == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Session utilisateur introuvable'),
+                    ),
+                  );
+                  return;
+                }
+                final ok = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ApproCreatePage(
+                      depot: widget.depot,
+                      userId: user.id,
+                    ),
+                  ),
+                );
+                if (ok == true && mounted) {
+                  unawaited(
+                    DepotCatalogStore.refreshInBackground(widget.depot.id),
+                  );
+                  await _load();
+                }
+              },
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

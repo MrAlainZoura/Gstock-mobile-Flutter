@@ -75,7 +75,7 @@ class _ProduitShowPageState extends State<ProduitShowPage> {
     final depot = widget.depot;
     if (depot == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dépôt introuvable pour l’appro')),
+        const SnackBar(content: Text('Point de vente introuvable pour l’appro')),
       );
       return;
     }
@@ -183,7 +183,7 @@ class _ProduitShowPageState extends State<ProduitShowPage> {
                   _kv('Marque', _produit.marque ?? '—'),
                   _kv('Prix', _produit.prix),
                   _kv(
-                    'Stock dépôt',
+                    'Stock point de vente',
                     '$qte $unite',
                     valueColor: qte <= 0 ? AppColors.red : AppColors.black,
                   ),

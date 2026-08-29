@@ -10,3 +10,12 @@ const String storageTokenKey = "jwt_token";
 const String storageUserKey = "user";
 const String storageRoleKey = "user_role";
 const String storageCatalogPrefix = "depot_catalog_";
+
+/// URL publique d'un fichier uploadé (`/uploads/{folder}/{file}`).
+String uploadsUrl(String folder, String? fileName) {
+  final name = fileName?.trim();
+  if (name == null || name.isEmpty) return '';
+  if (name.startsWith('http://') || name.startsWith('https://')) return name;
+  final root = baseUrl.replaceAll(RegExp(r'/api/?$'), '');
+  return '$root/uploads/$folder/$name';
+}

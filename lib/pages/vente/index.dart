@@ -37,6 +37,9 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
   @override
   void initState() {
     super.initState();
+    if (!widget.depot.abonnementCurrent) {
+      _period = PeriodRange.month();
+    }
     _load();
     unawaited(DepotCatalogStore.refreshInBackground(widget.depot.id));
   }
@@ -185,6 +188,7 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
               children: [
                 PeriodFilterBar(
                   value: _period,
+                  lockedToMonth: _access.getPeriodLockedToMonth(widget.depot),
                   onChanged: (range) {
                     setState(() => _period = range);
                     _load();
@@ -287,17 +291,19 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => VenteCreatePage(depot: widget.depot),
-            ),
-          );
-        },
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _access.canWrite(widget.depot)
+          ? FloatingActionButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => VenteCreatePage(depot: widget.depot),
+                  ),
+                );
+              },
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

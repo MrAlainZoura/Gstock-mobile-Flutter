@@ -17,7 +17,7 @@ class DepotDetailPage extends StatelessWidget {
         final access = snapshot.data ?? Access();
         return Scaffold(
           appBar: AppBar(
-            title: const Text("Détails du dépôt"),
+            title: const Text("Détails du point de vente"),
             actions: [
               // Sidebar Blade : « Mise à jour » admin uniquement.
               if (access.canEditDepot)

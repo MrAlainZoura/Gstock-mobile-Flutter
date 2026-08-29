@@ -25,15 +25,15 @@ class DepotListPage extends StatelessWidget {
         final visible = access.visibleDepots(depots);
         return Scaffold(
           appBar: AppBar(
-            title: const Text("Liste des dépôts"),
+            title: const Text("Points de vente"),
             actions: accountAppBarActions(context, access),
           ),
           body: visible.isEmpty
               ? Center(
                   child: Text(
                     access.isSimpleUser
-                        ? "Aucune affectation de dépôt (depotUser)"
-                        : "Aucun dépôt",
+                        ? "Aucune affectation de point de vente"
+                        : "Aucun point de vente",
                   ),
                 )
               : GridView.builder(
@@ -82,7 +82,7 @@ class DepotListPage extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 const Icon(
-                                  Icons.desktop_windows_outlined,
+                                  Icons.storefront_outlined,
                                   size: 40,
                                   color: AppColors.white,
                                 ),
@@ -106,11 +106,18 @@ class DepotListPage extends StatelessWidget {
                     );
                   },
                 ),
-          // Blade `hearder` : Depot+ réservé Super admin / Administrateur (quota).
           floatingActionButton: access.canCreateDepot
               ? FloatingActionButton(
-                  tooltip: 'Créer un dépôt',
+                  tooltip: 'Créer un point de vente',
                   onPressed: () {
+                    // Création PDV : au moins un PDV avec abonnement actif
+                    // (ou Super admin). Sinon bloqué.
+                    final writable = visible.any(access.canWrite) ||
+                        access.isSuperAdmin;
+                    if (!writable && visible.isNotEmpty) {
+                      access.showSubscriptionBlocked(context);
+                      return;
+                    }
                     Navigator.push(
                       context,
                       MaterialPageRoute(

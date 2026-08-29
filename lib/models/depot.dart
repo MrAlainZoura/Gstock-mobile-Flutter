@@ -23,6 +23,8 @@ class Depot {
   /// Si true, les paiements / dépenses sont traités en CDF (sans multiplier le taux).
   final bool useCdf;
   final String? printer;
+  /// Miroir de `Depot::abonnementCurrent()` (API `abonnement_current`).
+  final bool abonnementCurrent;
 
   Depot({
     required this.id,
@@ -46,9 +48,11 @@ class Depot {
     this.type = 'Shop',
     this.useCdf = false,
     this.printer,
+    this.abonnementCurrent = true,
   });
 
   factory Depot.fromJson(Map<String, dynamic> json) {
+    final rawAb = json['abonnement_current'] ?? json['abonnementCurrent'];
     return Depot(
       id: asInt(json['id']),
       userId: asInt(json['user_id']),
@@ -73,6 +77,9 @@ class Depot {
           : 'Shop',
       useCdf: json['use_cdf'] == true || json['use_cdf'] == 1,
       printer: json['printer']?.toString(),
+      abonnementCurrent: rawAb == null
+          ? true
+          : rawAb == true || rawAb == 1 || rawAb == '1',
     );
   }
 

@@ -1,3 +1,5 @@
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../models/reservation.dart';
 import '../utils/methode.dart';
 import 'api_client.dart';
@@ -44,7 +46,38 @@ class ReservationService {
 
   /// `POST /reservations`
   Future<Reservation> create(ReservationCreatePayload payload) async {
-    final res = await _api.post('reservations', body: payload.toJson());
+    final ApiResponse res;
+    final imagePath = payload.imagePath?.trim();
+    if (imagePath != null && imagePath.isNotEmpty) {
+      final lower = imagePath.toLowerCase();
+      final ext = lower.endsWith('.png')
+          ? 'png'
+          : lower.endsWith('.webp')
+              ? 'webp'
+              : lower.endsWith('.gif')
+                  ? 'gif'
+                  : 'jpg';
+      final mime = ext == 'png'
+          ? MediaType('image', 'png')
+          : ext == 'webp'
+              ? MediaType('image', 'webp')
+              : ext == 'gif'
+                  ? MediaType('image', 'gif')
+                  : MediaType('image', 'jpeg');
+      final file = await http.MultipartFile.fromPath(
+        'image',
+        imagePath,
+        filename: 'piece_identite.$ext',
+        contentType: mime,
+      );
+      res = await _api.postMultipart(
+        'reservations',
+        payload.toMultipartFields(),
+        files: [file],
+      );
+    } else {
+      res = await _api.post('reservations', body: payload.toJson());
+    }
     final data = asMap(res.data);
     if (data == null) {
       throw ApiException('Réservation créée mais réponse invalide');

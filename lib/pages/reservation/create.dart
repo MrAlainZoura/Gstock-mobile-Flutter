@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../api/api_response.dart';
 import '../../api/depot_catalog.dart';
@@ -32,6 +34,9 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
   final _search = TextEditingController();
   final _taux = TextEditingController();
   final _trancheP = TextEditingController();
+  final _numeroPiece = TextEditingController();
+  String? _pieceType;
+  String? _imagePath;
 
   String _lieu = 'Shop';
   String _query = '';
@@ -61,6 +66,7 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
     _search.dispose();
     _taux.dispose();
     _trancheP.dispose();
+    _numeroPiece.dispose();
     for (final line in _lines) {
       line.dispose();
     }
@@ -245,6 +251,298 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
     });
   }
 
+  Future<void> _pickImageSource() async {
+    if (_saving) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.gray.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  "Photo de la pièce d'identité",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  "Caméra, galerie ou stockage — accès demandé à l'ouverture.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.gray, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.blue,
+                    foregroundColor: AppColors.white,
+                    child: Icon(Icons.photo_camera_outlined),
+                  ),
+                  title: const Text('Prendre une photo'),
+                  subtitle: const Text('Accès caméra'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.black,
+                    foregroundColor: AppColors.white,
+                    child: Icon(Icons.photo_library_outlined),
+                  ),
+                  title: const Text('Galerie / stockage'),
+                  subtitle: const Text('Accès photos et fichiers'),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+                if (_imagePath != null)
+                  ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: AppColors.red,
+                      foregroundColor: AppColors.white,
+                      child: Icon(Icons.delete_outline),
+                    ),
+                    title: const Text('Retirer la photo'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      setState(() => _imagePath = null);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (source == null || !mounted) return;
+    await _pickImage(source);
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: source,
+        // Sous upload_max_filesize PHP (~2 Mo) : compression agressive.
+        imageQuality: 70,
+        maxWidth: 1280,
+      );
+      if (file == null || !mounted) return;
+      setState(() => _imagePath = file.path);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.red,
+          content: Text(
+            source == ImageSource.camera
+                ? "Impossible d'accéder à la caméra. Vérifiez les permissions."
+                : "Impossible d'accéder à la galerie/stockage. Vérifiez les permissions.",
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildPiecePhotoPicker() {
+    final hasImage = _imagePath != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Photo pièce d'identité (optionnel)",
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Material(
+          color: AppColors.grayLight,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            onTap: _saving ? null : _pickImageSource,
+            borderRadius: BorderRadius.circular(14),
+            child: Ink(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: hasImage
+                      ? AppColors.blue.withValues(alpha: 0.55)
+                      : AppColors.gray.withValues(alpha: 0.35),
+                  width: hasImage ? 1.5 : 1,
+                ),
+              ),
+              child: hasImage
+                  ? Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(13),
+                          child: Image.file(
+                            File(_imagePath!),
+                            height: 180,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              height: 180,
+                              alignment: Alignment.center,
+                              color: AppColors.grayLight,
+                              child: const Text(
+                                'Aperçu indisponible',
+                                style: TextStyle(color: AppColors.gray),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: const BorderRadius.vertical(
+                                bottom: Radius.circular(13),
+                              ),
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  AppColors.black.withValues(alpha: 0),
+                                  AppColors.black.withValues(alpha: 0.65),
+                                ],
+                              ),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.zoom_out_map,
+                                  size: 16,
+                                  color: AppColors.white,
+                                ),
+                                SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Aperçu — toucher pour changer',
+                                    style: TextStyle(
+                                      color: AppColors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Material(
+                            color: AppColors.black.withValues(alpha: 0.55),
+                            shape: const CircleBorder(),
+                            child: IconButton(
+                              tooltip: 'Retirer',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: _saving
+                                  ? null
+                                  : () => setState(() => _imagePath = null),
+                              icon: const Icon(
+                                Icons.close,
+                                color: AppColors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : SizedBox(
+                      height: 140,
+                      width: double.infinity,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: AppColors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: AppColors.blue.withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.badge_outlined,
+                              color: AppColors.blue,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Ajouter une photo',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.black,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Caméra · Galerie · Stockage',
+                            style: TextStyle(
+                              color: AppColors.gray,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ),
+        ),
+        if (hasImage) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _saving ? null : _pickImageSource,
+                  icon: const Icon(Icons.cameraswitch_outlined, size: 18),
+                  label: const Text('Changer'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _saving
+                      ? null
+                      : () => setState(() => _imagePath = null),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.red,
+                  ),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Retirer'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_lines.isEmpty) {
@@ -300,6 +598,11 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
           tranche: _tranche,
           trancheP: _toCdf(num.tryParse(_trancheP.text.trim()) ?? 0),
           reservations: reservations,
+          piece: _pieceType,
+          numeroPiece: _numeroPiece.text.trim().isEmpty
+              ? null
+              : _numeroPiece.text.trim(),
+          imagePath: _imagePath,
         ),
       );
       unawaited(DepotCatalogStore.refreshInBackground(widget.depot.id));
@@ -390,6 +693,46 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
                                 labelText: "Adresse",
                               ),
                             ),
+                            const SizedBox(height: 10),
+                            DropdownButtonFormField<String>(
+                              key: ValueKey(_pieceType ?? ''),
+                              initialValue: _pieceType ?? '',
+                              decoration: const InputDecoration(
+                                labelText: "Pièce d'identité (optionnel)",
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: '',
+                                  child: Text('— Aucune —'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Carte d\'électeur',
+                                  child: Text("Carte d'électeur"),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Passeport',
+                                  child: Text('Passeport'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Permis de conduire',
+                                  child: Text('Permis de conduire'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Autre',
+                                  child: Text('Autre'),
+                                ),
+                              ],
+                              onChanged: (v) => setState(() => _pieceType = (v == null || v.isEmpty) ? null : v),
+                            ),
+                            const SizedBox(height: 10),
+                            TextFormField(
+                              controller: _numeroPiece,
+                              decoration: const InputDecoration(
+                                labelText: "N° pièce (optionnel)",
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildPiecePhotoPicker(),
                             const SizedBox(height: 10),
                             DropdownButtonFormField<String>(
                               key: ValueKey(_lieu),

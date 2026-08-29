@@ -89,6 +89,7 @@ class _ReservationCreancesPageState extends State<ReservationCreancesPage> {
               children: [
                 PeriodFilterBar(
                   value: _period,
+                  lockedToMonth: !widget.depot.abonnementCurrent,
                   onChanged: (range) {
                     setState(() => _period = range);
                     _load();

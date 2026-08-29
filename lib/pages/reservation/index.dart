@@ -37,6 +37,9 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
   @override
   void initState() {
     super.initState();
+    if (!widget.depot.abonnementCurrent) {
+      _period = PeriodRange.month();
+    }
     _load();
     unawaited(DepotCatalogStore.refreshInBackground(widget.depot.id));
   }
@@ -165,6 +168,7 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
               children: [
                 PeriodFilterBar(
                   value: _period,
+                  lockedToMonth: _access.getPeriodLockedToMonth(widget.depot),
                   onChanged: (range) {
                     setState(() => _period = range);
                     _load();
@@ -262,18 +266,20 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ReservationCreatePage(depot: widget.depot),
-            ),
-          );
-          if (mounted) _load();
-        },
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _access.canWrite(widget.depot)
+          ? FloatingActionButton(
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ReservationCreatePage(depot: widget.depot),
+                  ),
+                );
+                if (mounted) _load();
+              },
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

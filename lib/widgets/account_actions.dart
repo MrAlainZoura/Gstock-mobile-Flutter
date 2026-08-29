@@ -11,6 +11,7 @@ List<Widget> accountAppBarActions(
   BuildContext context,
   Access access, {
   int? depotId,
+  bool abonnementCurrent = true,
 }) {
   return [
     PopupMenuButton<String>(
@@ -23,7 +24,10 @@ List<Widget> accountAppBarActions(
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => UserListScreen(depotId: depotId),
+              builder: (_) => UserListScreen(
+                depotId: depotId,
+                abonnementCurrent: abonnementCurrent,
+              ),
             ),
           );
         } else if (value == 'profile' && access.user != null) {
@@ -47,7 +51,8 @@ List<Widget> accountAppBarActions(
         }
       },
       itemBuilder: (context) => [
-        if (access.isAdmin)
+        // Admin / Super admin : utilisateurs du point de vente en cours.
+        if (access.isAdmin && depotId != null)
           const PopupMenuItem(
             value: 'users',
             child: _MenuRow(icon: Icons.people, label: 'Utilisateurs'),

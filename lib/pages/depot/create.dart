@@ -27,7 +27,7 @@ class _DepotCreatePageState extends State<DepotCreatePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "Vous ne disposez pas du droit nécessaire pour créer un dépôt",
+            "Vous ne disposez pas du droit nécessaire pour créer un point de vente",
           ),
         ),
       );
@@ -51,7 +51,7 @@ class _DepotCreatePageState extends State<DepotCreatePage> {
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Dépôt créé")),
+        const SnackBar(content: Text("Point de vente créé")),
       );
       Navigator.pop(context, true);
     } on ApiException catch (e) {
@@ -73,7 +73,7 @@ class _DepotCreatePageState extends State<DepotCreatePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Créer un dépôt")),
+      appBar: AppBar(title: const Text("Créer un point de vente")),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -136,10 +136,15 @@ class _DepotEditPageState extends State<DepotEditPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "Mise à jour du dépôt réservée à l'administrateur",
+            "Mise à jour du point de vente réservée à l'administrateur",
           ),
         ),
       );
+      return;
+    }
+    if (!access.canWrite(widget.depot)) {
+      if (!mounted) return;
+      access.showSubscriptionBlocked(context);
       return;
     }
     setState(() => _loading = true);
@@ -150,7 +155,7 @@ class _DepotEditPageState extends State<DepotEditPage> {
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Dépôt mis à jour")),
+        const SnackBar(content: Text("Point de vente mis à jour")),
       );
       Navigator.pop(context, true);
     } on ApiException catch (e) {
@@ -172,7 +177,7 @@ class _DepotEditPageState extends State<DepotEditPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Modifier le dépôt")),
+      appBar: AppBar(title: const Text("Modifier le point de vente")),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(

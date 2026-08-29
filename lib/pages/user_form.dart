@@ -2,16 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../api/api_response.dart';
 import '../api/auth_service.dart';
+import '../api/dashboard_service.dart';
 import '../api/user_service.dart';
+import '../models/depot.dart';
 import '../utils/access.dart';
 import '../utils/app_theme.dart';
 
 /// Formulaire create `POST /users` / update `PUT /users/{id}`.
-/// Create : name, email, password obligatoires.
-/// Update : name, email, id — **sans** password.
+/// Create & update (admin) : affectations PDV via `depot_id` / `affectation[]`.
 class UserFormScreen extends StatefulWidget {
   final int? userId;
-  const UserFormScreen({super.key, this.userId});
+  /// Point de vente courant — requis pour la création / affectations admin.
+  final int? depotId;
+
+  const UserFormScreen({super.key, this.userId, this.depotId});
 
   @override
   State<UserFormScreen> createState() => _UserFormScreenState();
@@ -23,7 +27,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
   final _postnomController = TextEditingController();
   final _prenomController = TextEditingController();
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _passwordController = TextEditingController(text: '0000');
   final _telController = TextEditingController();
   final _fonctionController = TextEditingController();
   final _adresseController = TextEditingController();
@@ -33,15 +37,28 @@ class _UserFormScreenState extends State<UserFormScreen> {
   String _genre = 'M';
   bool _loading = false;
   bool _loadingUser = false;
+  bool _loadingDepots = false;
+  Access _access = Access();
+
+  List<Depot> _assignableDepots = [];
+  final Set<int> _selectedDepotIds = {};
 
   bool get _isCreate => widget.userId == null;
+  bool get _canEditAffectation => _access.isAdmin && widget.depotId != null;
 
   @override
   void initState() {
     super.initState();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    _access = await Access.load();
+    if (!mounted) return;
     if (widget.userId != null) {
-      _loadingUser = true;
-      UserService().getUserById(widget.userId!).then((user) {
+      setState(() => _loadingUser = true);
+      try {
+        final user = await UserService().getUserById(widget.userId!);
         if (!mounted) return;
         setState(() {
           _nameController.text = user.name;
@@ -57,10 +74,84 @@ class _UserFormScreenState extends State<UserFormScreen> {
           if (user.genre != null && user.genre!.isNotEmpty) {
             _genre = user.genre!;
           }
+          for (final row in user.depotUser) {
+            if (row.depotId > 0) _selectedDepotIds.add(row.depotId);
+          }
           _loadingUser = false;
         });
-      }).catchError((_) {
+        if (_canEditAffectation) await _loadAssignableDepots();
+      } catch (_) {
         if (mounted) setState(() => _loadingUser = false);
+      }
+    } else if (widget.depotId != null) {
+      await _loadAssignableDepots();
+    }
+  }
+
+  Future<void> _loadAssignableDepots() async {
+    final currentId = widget.depotId;
+    if (currentId == null) return;
+    setState(() => _loadingDepots = true);
+    try {
+      final access = await Access.load();
+      final dash = await DashboardService().getDashboard();
+      final all = dash.depots;
+      final visible = access.visibleDepots(all);
+      Depot? current;
+      for (final d in [...visible, ...all]) {
+        if (d.id == currentId) {
+          current = d;
+          break;
+        }
+      }
+      if (current == null) {
+        if (!mounted) return;
+        setState(() {
+          _assignableDepots = [];
+          if (_isCreate) {
+            _selectedDepotIds
+              ..clear()
+              ..add(currentId);
+          }
+          _loadingDepots = false;
+        });
+        return;
+      }
+
+      final ownerId = current.userId;
+      final source = access.isSuperAdmin ? all : visible;
+      final assignable = source
+          .where((d) => d.userId == ownerId || d.id == currentId)
+          .toList()
+        ..sort((a, b) => a.libele.compareTo(b.libele));
+
+      if (!mounted) return;
+      setState(() {
+        _assignableDepots = assignable.isEmpty ? [current!] : assignable;
+        if (_isCreate) {
+          _selectedDepotIds
+            ..clear()
+            ..add(currentId);
+        } else {
+          // Garder les sélections existantes qui sont encore autorisées.
+          _selectedDepotIds.removeWhere(
+            (id) => !_assignableDepots.any((d) => d.id == id),
+          );
+          if (widget.depotId != null) {
+            _selectedDepotIds.add(widget.depotId!);
+          }
+        }
+        _loadingDepots = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_isCreate) {
+          _selectedDepotIds
+            ..clear()
+            ..add(currentId);
+        }
+        _loadingDepots = false;
       });
     }
   }
@@ -86,13 +177,28 @@ class _UserFormScreenState extends State<UserFormScreen> {
       );
       return;
     }
+    if (_isCreate && widget.depotId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Point de vente requis pour créer un utilisateur'),
+        ),
+      );
+      return;
+    }
+    if (_canEditAffectation && widget.depotId != null) {
+      _selectedDepotIds.add(widget.depotId!);
+    }
+
     setState(() => _loading = true);
     try {
       if (_isCreate) {
         await UserService().createUser({
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
-          'password': _passwordController.text,
+          'password': _passwordController.text.isEmpty
+              ? '0000'
+              : _passwordController.text,
           'genre': _genre,
           'naissance': _naissanceController.text.trim(),
           'fonction': _fonctionController.text.trim(),
@@ -102,13 +208,17 @@ class _UserFormScreenState extends State<UserFormScreen> {
           'tel': _telController.text.trim(),
           'postnom': _postnomController.text.trim(),
           'prenom': _prenomController.text.trim(),
+          'depot_id': widget.depotId,
+          'affectation': _selectedDepotIds.toList(),
         });
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Utilisateur créé')),
+          const SnackBar(
+            content: Text('Utilisateur créé (rôle user + affectations)'),
+          ),
         );
       } else {
-        final updated = await UserService().updateUser(widget.userId!, {
+        final body = <String, dynamic>{
           'id': widget.userId,
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
@@ -121,14 +231,17 @@ class _UserFormScreenState extends State<UserFormScreen> {
           'adresse': _adresseController.text.trim(),
           'postnom': _postnomController.text.trim(),
           'prenom': _prenomController.text.trim(),
-        });
+        };
+        if (_canEditAffectation) {
+          body['depot_id'] = widget.depotId;
+          body['affectation'] = _selectedDepotIds.toList();
+        }
+        final updated = await UserService().updateUser(widget.userId!, body);
         final session = await AuthService().user();
         if (session != null && session.id == updated.id) {
           try {
             await AuthService().me();
-          } catch (_) {
-            // Session locale déjà à jour côté API ; profil rechargé via pop.
-          }
+          } catch (_) {}
         }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -160,6 +273,60 @@ class _UserFormScreenState extends State<UserFormScreen> {
     _niveauController.dispose();
     _optionController.dispose();
     super.dispose();
+  }
+
+  Widget _affectationSection() {
+    return _section(
+      title: 'Affectation',
+      children: [
+        const Text(
+          'Points de vente de l’admin du PDV courant '
+          '(le PDV en cours reste sélectionnable) :',
+          style: TextStyle(fontSize: 13, color: AppColors.gray),
+        ),
+        const SizedBox(height: 8),
+        if (_loadingDepots)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_assignableDepots.isEmpty)
+          Text(
+            'PDV courant #${widget.depotId}',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          )
+        else
+          ..._assignableDepots.map((d) {
+            final checked = _selectedDepotIds.contains(d.id);
+            final isCurrent = d.id == widget.depotId;
+            return CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              value: checked,
+              title: Text(
+                '${d.type} ${d.libele}'.trim(),
+                style: TextStyle(
+                  fontWeight:
+                      isCurrent ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+              subtitle:
+                  isCurrent ? const Text('Point de vente en cours') : null,
+              onChanged: (v) {
+                setState(() {
+                  if (v == true) {
+                    _selectedDepotIds.add(d.id);
+                  } else if (!isCurrent || !_isCreate) {
+                    // En création, le PDV courant reste obligatoire.
+                    if (isCurrent && _isCreate) return;
+                    _selectedDepotIds.remove(d.id);
+                  }
+                });
+              },
+            );
+          }),
+      ],
+    );
   }
 
   @override
@@ -305,6 +472,10 @@ class _UserFormScreenState extends State<UserFormScreen> {
                       ),
                     ],
                   ),
+                  if (_canEditAffectation) ...[
+                    const SizedBox(height: 12),
+                    _affectationSection(),
+                  ],
                   if (_isCreate) ...[
                     const SizedBox(height: 12),
                     _section(
@@ -314,12 +485,13 @@ class _UserFormScreenState extends State<UserFormScreen> {
                           controller: _passwordController,
                           obscureText: true,
                           decoration: const InputDecoration(
-                            labelText: 'Mot de passe * (min. 4)',
+                            labelText: 'Mot de passe * (défaut 0000)',
                             prefixIcon: Icon(Icons.lock_outline),
                           ),
                           validator: (value) {
                             if (!_isCreate) return null;
-                            if (value == null || value.length < 4) {
+                            if (value == null || value.isEmpty) return null;
+                            if (value.length < 4) {
                               return 'Mot de passe trop court';
                             }
                             return null;
@@ -342,7 +514,11 @@ class _UserFormScreenState extends State<UserFormScreen> {
                                 color: AppColors.white,
                               ),
                             )
-                          : Text(_isCreate ? 'Créer' : 'Enregistrer les modifications'),
+                          : Text(
+                              _isCreate
+                                  ? 'Créer'
+                                  : 'Enregistrer les modifications',
+                            ),
                     ),
                   ),
                 ],

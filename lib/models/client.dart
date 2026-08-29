@@ -17,6 +17,7 @@ class Client {
   final String? numeroPiece;
   final String? imagePiece;
   final int? ventesCount;
+  final int? reservationsCount;
 
   Client({
     required this.id,
@@ -31,6 +32,7 @@ class Client {
     this.numeroPiece,
     this.imagePiece,
     this.ventesCount,
+    this.reservationsCount,
   });
 
   factory Client.fromJson(Map<String, dynamic> json) {
@@ -47,8 +49,25 @@ class Client {
       numeroPiece: (json['numero_piece'] ?? json['numeroPiece'])?.toString(),
       imagePiece: json['image_piece']?.toString(),
       ventesCount: json['ventes_count'] != null ? asInt(json['ventes_count']) : null,
+      reservationsCount: json['reservations_count'] != null
+          ? asInt(json['reservations_count'])
+          : (json['count'] != null ? asInt(json['count']) : null),
     );
   }
+
+  String get displayName {
+    final parts = [name, prenom]
+        .where((e) => e != null && e.trim().isNotEmpty)
+        .join(' ')
+        .trim();
+    return parts.isEmpty ? 'Client #$id' : parts;
+  }
+
+  String get searchText =>
+      [displayName, tel, adresse, pieceIdentite, numeroPiece]
+          .where((e) => e != null && e.toString().trim().isNotEmpty)
+          .join(' ')
+          .toLowerCase();
 
   /// Body `PUT /clients/{id}` (JSON ou multipart).
   Map<String, dynamic> toUpdateJson({required int depotId}) {
@@ -62,5 +81,10 @@ class Client {
       'piece': pieceIdentite,
       'numeroPiece': numeroPiece,
     };
+  }
+
+  Map<String, String> toMultipartFields({required int depotId}) {
+    final json = toUpdateJson(depotId: depotId);
+    return json.map((k, v) => MapEntry(k, '${v ?? ''}'));
   }
 }

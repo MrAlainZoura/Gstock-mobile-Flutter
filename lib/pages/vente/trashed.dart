@@ -138,6 +138,7 @@ class _VenteTrashedPageState extends State<VenteTrashedPage> {
               children: [
                 PeriodFilterBar(
                   value: _period,
+                  lockedToMonth: !widget.depot.abonnementCurrent,
                   onChanged: (range) {
                     setState(() => _period = range);
                     _load();

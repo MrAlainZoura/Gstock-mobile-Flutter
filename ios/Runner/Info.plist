@@ -50,5 +50,13 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>GStock a besoin d'accéder à vos photos pour joindre une pièce d'identité à la réservation.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>GStock peut enregistrer une photo de pièce d'identité dans votre galerie.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>GStock a besoin de la caméra pour photographier une pièce d'identité.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Accès micro requis uniquement si la caméra l'utilise.</string>
 </dict>
 </plist>

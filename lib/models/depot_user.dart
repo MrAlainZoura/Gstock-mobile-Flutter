@@ -33,7 +33,7 @@ class DepotUser {
     for (final d in catalog) {
       if (d.id == depotId) return d;
     }
-    return Depot(id: depotId, userId: userId, libele: 'Dépôt #$depotId');
+    return Depot(id: depotId, userId: userId, libele: 'Point de vente #$depotId');
   }
 
   static List<DepotUser> listFrom(dynamic raw) {

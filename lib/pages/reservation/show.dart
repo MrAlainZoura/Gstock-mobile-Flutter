@@ -7,6 +7,7 @@ import '../../models/reservation.dart';
 import '../../models/vente.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/constants.dart';
 import '../../utils/duree.dart';
 import '../../widgets/confirm_dialog.dart';
 import 'create.dart';
@@ -177,6 +178,10 @@ class _ReservationShowPageState extends State<ReservationShowPage> {
                     children: [
                       _kv("Client", reservation.clientName),
                       _kv("Facturé par", reservation.vendorName),
+                      if (reservation.clientPiece != null)
+                        _kv("Pièce d'identité", reservation.clientPiece!),
+                      if (reservation.clientNumeroPiece != null)
+                        _kv("N° pièce", reservation.clientNumeroPiece!),
                       if (reservation.statut.isNotEmpty)
                         _kv("Statut", reservation.statut),
                       _kv(
@@ -193,6 +198,37 @@ class _ReservationShowPageState extends State<ReservationShowPage> {
                         ),
                     ],
                   ),
+                  if (reservation.clientImagePiece != null) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Image pièce d'identité",
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                uploadsUrl('pieceIdentite', reservation.clientImagePiece),
+                                height: 180,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Text(
+                                  'Image indisponible',
+                                  style: TextStyle(color: AppColors.gray),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   _ProductsCard(reservation: reservation),
                   const SizedBox(height: 12),

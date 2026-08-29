@@ -11,6 +11,7 @@ import '../../models/vente.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/methode.dart';
+import '../../widgets/confirm_dialog.dart';
 import '../user_form.dart';
 
 /// Profil utilisateur : infos, stats d'opérations, édition, mot de passe.
@@ -98,10 +99,58 @@ class _ProfilPageState extends State<ProfilPage> {
     final ok = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => UserFormScreen(userId: widget.userId),
+        builder: (_) => UserFormScreen(
+          userId: widget.userId,
+          depotId: widget.depotId,
+        ),
       ),
     );
     if (ok == true && mounted) await _load();
+  }
+
+  Future<void> _deleteAccount() async {
+    final user = _user;
+    if (user == null || !_access.canDeleteAccount(user)) return;
+
+    final isSelf = _access.user?.id == user.id;
+    final ok = await confirmAction(
+      context,
+      title: isSelf ? 'Supprimer mon compte' : 'Supprimer le compte',
+      message: isSelf
+          ? 'Votre compte sera désactivé (soft-delete). '
+              'Cette action est irréversible côté application.'
+          : 'Le compte de ${user.name} sera soft-supprimé.',
+      confirmLabel: 'Supprimer',
+    );
+    if (!ok || !mounted) return;
+
+    try {
+      await UserService().deleteUser(user.id);
+      if (!mounted) return;
+      if (isSelf) {
+        await AuthService().logout();
+        if (!mounted) return;
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Compte supprimé')),
+        );
+        Navigator.pop(context, true);
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: AppColors.red, content: Text(e.message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: AppColors.red, content: Text('$e')),
+      );
+    }
   }
 
   Future<void> _showPasswordModal() async {
@@ -215,7 +264,10 @@ class _ProfilPageState extends State<ProfilPage> {
   @override
   Widget build(BuildContext context) {
     final user = _user;
-    final canEdit = _access.canEditUser(widget.userId);
+    final deleted = user?.isDeleted == true;
+    final canEdit = !deleted && _access.canEditUser(widget.userId);
+    final canDelete = user != null && _access.canDeleteAccount(user);
+    final isSelf = _access.user?.id == widget.userId;
     final fullName = user == null
         ? ''
         : [user.name, user.postnom, user.prenom]
@@ -225,7 +277,7 @@ class _ProfilPageState extends State<ProfilPage> {
     return Scaffold(
       backgroundColor: AppColors.grayLight,
       appBar: AppBar(
-        title: const Text('Mon profil'),
+        title: Text(isSelf ? 'Mon profil' : 'Profil'),
         actions: [
           if (canEdit) ...[
             IconButton(
@@ -252,18 +304,68 @@ class _ProfilPageState extends State<ProfilPage> {
                       child: ListView(
                         padding: const EdgeInsets.all(16),
                         children: [
+                          if (deleted) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.red.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                'Compte soft-supprimé'
+                                '${user.deletedAt != null ? ' le ${user.deletedAt}' : ''}',
+                                style: const TextStyle(
+                                  color: AppColors.red,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
                           Card(
                             child: Padding(
                               padding: const EdgeInsets.all(16),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    fullName.isEmpty ? user.name : fullName,
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          fullName.isEmpty
+                                              ? user.name
+                                              : fullName,
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            decoration: deleted
+                                                ? TextDecoration.lineThrough
+                                                : null,
+                                          ),
+                                        ),
+                                      ),
+                                      if (deleted)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.red
+                                                .withValues(alpha: 0.15),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: const Text(
+                                            'Supprimé',
+                                            style: TextStyle(
+                                              color: AppColors.red,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -291,7 +393,7 @@ class _ProfilPageState extends State<ProfilPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'Statistiques (dépôt courant)',
+                                    'Statistiques (point de vente courant)',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -359,6 +461,22 @@ class _ProfilPageState extends State<ProfilPage> {
                               onPressed: _edit,
                               icon: const Icon(Icons.edit),
                               label: const Text('Mettre à jour mes infos'),
+                            ),
+                          ],
+                          if (canDelete) ...[
+                            const SizedBox(height: 16),
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.red,
+                                side: const BorderSide(color: AppColors.red),
+                              ),
+                              onPressed: _deleteAccount,
+                              icon: const Icon(Icons.delete_forever_outlined),
+                              label: Text(
+                                isSelf
+                                    ? 'Supprimer mon compte'
+                                    : 'Supprimer ce compte',
+                              ),
                             ),
                           ],
                         ],

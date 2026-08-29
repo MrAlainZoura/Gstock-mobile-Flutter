@@ -168,6 +168,7 @@ class ApiClient {
       request('DELETE', path, body: body, auth: auth);
 
   /// Upload `multipart/form-data` (produits, dépenses, clients, admin).
+  /// Ne force pas `Content-Type` : le boundary multipart est géré par [MultipartRequest].
   Future<ApiResponse<dynamic>> postMultipart(
     String path,
     Map<String, String> fields, {
@@ -176,7 +177,10 @@ class ApiClient {
   }) async {
     final token = await getToken();
     final request = http.MultipartRequest(method, _uri(path));
-    request.headers.addAll(_headers(token: token, json: false));
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+    request.headers['Accept'] = 'application/json';
     request.fields.addAll(fields);
     request.files.addAll(files);
 

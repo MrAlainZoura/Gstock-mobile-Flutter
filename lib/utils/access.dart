@@ -1,6 +1,9 @@
+import 'package:flutter/material.dart';
+
 import '../api/auth_service.dart';
 import '../models/depot.dart';
 import '../models/user.dart';
+import 'app_theme.dart';
 import 'methode.dart';
 
 /// Droits alignés sur les vues Blade (`sidebar`, `dashboard`, `actionLink`, `hearder`).
@@ -13,6 +16,10 @@ class Access {
   final User? user;
 
   static const adminRoles = ['Administrateur', 'Super admin'];
+
+  static const subscriptionInactiveMessage =
+      "Abonnement inactif : créez / modifiez impossible. "
+      "Consultation limitée au mois en cours.";
 
   static Future<Access> load() async {
     final auth = AuthService();
@@ -27,17 +34,48 @@ class Access {
   bool get isAdministrateur => libele == 'Administrateur';
   bool get isSimpleUser => libele == 'user';
 
-  /// Dépôts affichés comme `dashboard.blade.php` :
-  /// Super admin → tous ; Administrateur → `user.depot` ;
-  /// sinon → `user.depotUser.depot` (affectations du user connecté).
+  /// Points de vente visibles :
+  /// Super admin → tous ; Administrateur → ses PDV (`user.depot`)
+  /// + ceux où il est affecté (`depotUser`) ; sinon → affectations seules.
   List<Depot> visibleDepots([List<Depot> allFromApi = const []]) {
     if (isSuperAdmin) return allFromApi;
     if (isAdministrateur) {
-      final owned = user?.depot ?? [];
-      if (owned.isNotEmpty) return owned;
-      return allFromApi.where((d) => user != null && d.userId == user!.id).toList();
+      final byId = <int, Depot>{};
+      for (final d in user?.depot ?? const <Depot>[]) {
+        byId[d.id] = d;
+      }
+      for (final d in user?.assignedDepots(allFromApi) ?? const <Depot>[]) {
+        byId[d.id] = d;
+      }
+      if (byId.isEmpty && user != null) {
+        for (final d in allFromApi.where((d) => d.userId == user!.id)) {
+          byId[d.id] = d;
+        }
+      }
+      return byId.values.toList();
     }
     return user?.assignedDepots(allFromApi) ?? [];
+  }
+
+  /// `Depot::abonnementCurrent()` — Super admin toujours actif.
+  bool abonnementCurrent([Depot? depot]) {
+    if (isSuperAdmin) return true;
+    return depot?.abonnementCurrent ?? true;
+  }
+
+  /// Create / PUT autorisés uniquement si abonnement courant.
+  bool canWrite([Depot? depot]) => abonnementCurrent(depot);
+
+  /// GET limité au mois en cours si abonnement inactif.
+  bool getPeriodLockedToMonth([Depot? depot]) => !abonnementCurrent(depot);
+
+  void showSubscriptionBlocked(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        backgroundColor: AppColors.red,
+        content: Text(subscriptionInactiveMessage),
+      ),
+    );
   }
 
   /// `Depot+` (header dashboard) : Super admin toujours ;
@@ -57,6 +95,16 @@ class Access {
 
   /// Sidebar : Ajouter utilisateur.
   bool get canCreateUser => isAdmin;
+
+  /// Soft-delete compte : soi-même si rôle `user`, ou admin sur un `user`.
+  bool canDeleteAccount(User target) {
+    if (target.isDeleted) return false;
+    final targetRole =
+        target.userRole?.role?.libele ?? 'user';
+    if (adminRoles.contains(targetRole)) return false;
+    if (user != null && user!.id == target.id) return true;
+    return isAdmin;
+  }
 
   /// Profil Blade : soi-même **ou** admin.
   bool canEditUser(int targetUserId) =>
@@ -104,4 +152,8 @@ extension UserAccessX on User? {
     }
     return max ?? 1;
   }
+}
+
+extension UserDeletedX on User {
+  bool get isDeleted => deletedAt != null;
 }

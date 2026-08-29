@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../utils/duree.dart';
 import '../utils/methode.dart';
 import 'vente.dart';
@@ -82,6 +83,9 @@ class ReservationCreatePayload {
     this.updateDevise = 2800,
     this.tranche = false,
     this.trancheP = 0,
+    this.piece,
+    this.numeroPiece,
+    this.imagePath,
   });
 
   final int depotId;
@@ -96,6 +100,12 @@ class ReservationCreatePayload {
   final num updateDevise;
   final bool tranche;
   final num trancheP;
+  /// Type de pièce d'identité (nullable).
+  final String? piece;
+  /// Numéro de pièce (nullable).
+  final String? numeroPiece;
+  /// Chemin local de l'image (nullable) — déclenche un POST multipart.
+  final String? imagePath;
 
   Map<String, dynamic> toJson() {
     return {
@@ -111,7 +121,25 @@ class ReservationCreatePayload {
       'tranche': tranche,
       'trancheP': trancheP,
       'reservations': reservations,
+      if (piece != null && piece!.trim().isNotEmpty) 'piece': piece!.trim(),
+      if (numeroPiece != null && numeroPiece!.trim().isNotEmpty)
+        'numeroPiece': numeroPiece!.trim(),
     };
+  }
+
+  Map<String, String> toMultipartFields() {
+    final json = toJson();
+    final fields = <String, String>{};
+    json.forEach((key, value) {
+      if (key == 'reservations') {
+        fields[key] = jsonEncode(value);
+      } else if (value is bool) {
+        fields[key] = value ? '1' : '0';
+      } else if (value != null) {
+        fields[key] = '$value';
+      }
+    });
+    return fields;
   }
 }
 
@@ -135,6 +163,29 @@ class ReservationLigne {
 
 extension ReservationDisplay on Reservation {
   String get clientName => _personName(client, fallback: 'Client');
+
+  Map<String, dynamic>? get clientMap => asMap(client);
+
+  String? get clientPiece {
+    final c = clientMap;
+    if (c == null) return null;
+    final v = (c['peice_identite'] ?? c['piece'] ?? c['piece_identite'])?.toString().trim();
+    return (v == null || v.isEmpty) ? null : v;
+  }
+
+  String? get clientNumeroPiece {
+    final c = clientMap;
+    if (c == null) return null;
+    final v = (c['numero_piece'] ?? c['numeroPiece'])?.toString().trim();
+    return (v == null || v.isEmpty) ? null : v;
+  }
+
+  String? get clientImagePiece {
+    final c = clientMap;
+    if (c == null) return null;
+    final v = c['image_piece']?.toString().trim();
+    return (v == null || v.isEmpty) ? null : v;
+  }
 
   String get vendorName => _personName(user, fallback: 'Utilisateur');
 
