@@ -40,6 +40,8 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
 
   String _lieu = 'Shop';
   String _query = '';
+  /// `forfait` | `heure` | `nuitee` — UI only (comme le web).
+  String _modeTarif = 'forfait';
   bool _tranche = false;
   bool _prixEnCdf = false;
   bool _loadingForm = true;
@@ -187,25 +189,76 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
     });
   }
 
-  DateTime _defaultStart() {
-    final now = DateTime.now().add(const Duration(minutes: 15));
-    return DateTime(now.year, now.month, now.day, now.hour, now.minute);
+  bool get _isCalcMode =>
+      _modeTarif == 'heure' || _modeTarif == 'nuitee';
+
+  String get _modeTarifHint {
+    if (_modeTarif == 'heure') {
+      return 'Saisissez la date de début et la qté d’heures : la fin et le total sont calculés automatiquement.';
+    }
+    if (_modeTarif == 'nuitee') {
+      return 'Saisissez la date de début et la qté de nuitées : la fin et le total sont calculés automatiquement.';
+    }
+    return 'Saisie directe du montant ; indiquez début et fin manuellement.';
+  }
+
+  DateTime _truncateToMinute(DateTime value) {
+    return DateTime(value.year, value.month, value.day, value.hour, value.minute);
+  }
+
+  DateTime _defaultStart() => _truncateToMinute(DateTime.now());
+
+  /// Aligné web : forfait → +2h30 ; heure → +qté h ; nuitée → +qté j.
+  DateTime _computeEnd(DateTime start, {num? qte}) {
+    final qty = (qte == null || qte <= 0) ? 1 : qte;
+    if (_modeTarif == 'nuitee') {
+      return start.add(
+        Duration(milliseconds: (qty * 24 * 60 * 60 * 1000).round()),
+      );
+    }
+    if (_modeTarif == 'heure') {
+      return start.add(
+        Duration(milliseconds: (qty * 60 * 60 * 1000).round()),
+      );
+    }
+    return start.add(const Duration(hours: 2, minutes: 30));
+  }
+
+  num _defaultUnitPrice(_StockItem item) {
+    return _prixEnCdf
+        ? (item.cdfPrix > 0 ? item.cdfPrix : item.prix)
+        : (item.prix > 0 ? item.prix : item.cdfPrix);
+  }
+
+  void _setModeTarif(String mode) {
+    if (mode == _modeTarif) return;
+    setState(() {
+      _modeTarif = mode;
+      for (final line in _lines) {
+        line.applyMode(
+          mode: mode,
+          defaultPu: _defaultUnitPrice(line.item),
+          computeEnd: (start, qte) => _computeEnd(start, qte: qte),
+        );
+      }
+    });
   }
 
   void _addProduct(_StockItem item) {
     final start = _defaultStart();
-    final defaultMontant = _prixEnCdf
-        ? (item.cdfPrix > 0 ? item.cdfPrix : item.prix)
-        : (item.prix > 0 ? item.prix : item.cdfPrix);
+    final defaultPu = _defaultUnitPrice(item);
+    final line = _ResaLine(
+      item: item,
+      mode: _modeTarif,
+      debut: start,
+      fin: _computeEnd(start, qte: 1),
+      montant: defaultPu,
+      qte: 1,
+      prixUnitaire: defaultPu,
+    );
+    if (_isCalcMode) line.recalcTotal();
     setState(() {
-      _lines.add(
-        _ResaLine(
-          item: item,
-          debut: start,
-          fin: start.add(const Duration(hours: 1)),
-          montant: defaultMontant,
-        ),
-      );
+      _lines.add(line);
       _search.clear();
       _query = '';
     });
@@ -218,7 +271,15 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
     });
   }
 
+  void _onCalcFieldsChanged(_ResaLine line) {
+    setState(() {
+      line.recalcTotal();
+      line.fin = _computeEnd(line.debut, qte: line.qte);
+    });
+  }
+
   Future<void> _pickDateTime(_ResaLine line, {required bool start}) async {
+    if (!start && _isCalcMode) return;
     final initial = start ? line.debut : line.fin;
     final date = await showDatePicker(
       context: context,
@@ -242,8 +303,10 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
     setState(() {
       if (start) {
         line.debut = picked;
-        if (!line.fin.isAfter(line.debut)) {
-          line.fin = line.debut.add(const Duration(hours: 1));
+        if (_isCalcMode) {
+          line.fin = _computeEnd(line.debut, qte: line.qte);
+        } else if (!line.fin.isAfter(line.debut)) {
+          line.fin = _computeEnd(line.debut);
         }
       } else {
         line.fin = picked;
@@ -558,6 +621,30 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
       return;
     }
     for (final line in _lines) {
+      if (_isCalcMode) {
+        if (line.qte <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Quantité requise pour ${line.item.name}",
+              ),
+            ),
+          );
+          return;
+        }
+        if (line.prixUnitaire <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Prix unitaire requis pour ${line.item.name}",
+              ),
+            ),
+          );
+          return;
+        }
+        line.recalcTotal();
+        line.fin = _computeEnd(line.debut, qte: line.qte);
+      }
       if (line.montant <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Montant requis pour ${line.item.name}")),
@@ -821,6 +908,41 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
                       ),
                       const SizedBox(height: 12),
                       _section(
+                        title: "Mode de tarification",
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _modeChip(
+                                  value: 'forfait',
+                                  label: 'Forfait',
+                                ),
+                                _modeChip(
+                                  value: 'heure',
+                                  label: 'Heure',
+                                ),
+                                _modeChip(
+                                  value: 'nuitee',
+                                  label: 'Nuitée',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _modeTarifHint,
+                              style: const TextStyle(
+                                color: AppColors.gray,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _section(
                         title: "Produits",
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -936,11 +1058,31 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
     );
   }
 
+  Widget _modeChip({required String value, required String label}) {
+    final selected = _modeTarif == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: _saving ? null : (_) => _setModeTarif(value),
+      selectedColor: AppColors.blue.withValues(alpha: 0.18),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.blue : AppColors.black,
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+      ),
+      side: BorderSide(
+        color: selected
+            ? AppColors.blue
+            : AppColors.gray.withValues(alpha: 0.35),
+      ),
+    );
+  }
+
   Widget _datePickButton({
     required String label,
     required DateTime value,
     required IconData icon,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
+    bool readOnly = false,
   }) {
     return SizedBox(
       width: double.infinity,
@@ -950,6 +1092,7 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
         style: OutlinedButton.styleFrom(
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.symmetric(horizontal: 12),
+          backgroundColor: readOnly ? AppColors.grayLight : null,
         ),
         child: Row(
           children: [
@@ -968,6 +1111,11 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (readOnly)
+              const Text(
+                'auto',
+                style: TextStyle(color: AppColors.gray, fontSize: 11),
+              ),
           ],
         ),
       ),
@@ -975,6 +1123,9 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
   }
 
   Widget _lineCard(_ResaLine line) {
+    final currency =
+        _prixEnCdf ? 'CDF' : (_devise?.libele ?? '');
+    final qteLabel = _modeTarif == 'nuitee' ? 'Nuitées' : 'Heures';
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 2,
@@ -998,6 +1149,67 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
                 ),
               ],
             ),
+            if (_isCalcMode) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: line.qteCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: qteLabel,
+                      ),
+                      onChanged: (v) {
+                        line.qte = asDouble(v) ?? 0;
+                        _onCalcFieldsChanged(line);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextFormField(
+                      controller: line.puCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'P.U. ($currency)',
+                      ),
+                      onChanged: (v) {
+                        line.prixUnitaire = asDouble(v) ?? 0;
+                        _onCalcFieldsChanged(line);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: line.montantCtrl,
+                enabled: false,
+                decoration: InputDecoration(
+                  labelText: 'Total ($currency)',
+                  filled: true,
+                  fillColor: AppColors.grayLight,
+                ),
+              ),
+            ] else ...[
+              TextFormField(
+                controller: line.montantCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Montant ($currency)',
+                ),
+                onChanged: (v) {
+                  setState(() => line.montant = asDouble(v) ?? 0);
+                },
+              ),
+            ],
+            const SizedBox(height: 8),
             _datePickButton(
               label: 'Début',
               value: line.debut,
@@ -1009,26 +1221,15 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
               label: 'Fin',
               value: line.fin,
               icon: Icons.stop,
-              onPressed: () => _pickDateTime(line, start: false),
+              onPressed: _isCalcMode
+                  ? null
+                  : () => _pickDateTime(line, start: false),
+              readOnly: _isCalcMode,
             ),
             const SizedBox(height: 8),
             Text(
               "Période ${formatPeriode(line.debut, line.fin)}",
               style: const TextStyle(color: AppColors.gray),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: line.montantCtrl,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: InputDecoration(
-                labelText:
-                    "Montant (${_prixEnCdf ? 'CDF' : (_devise?.libele ?? '')})",
-              ),
-              onChanged: (v) {
-                setState(() => line.montant = asDouble(v) ?? 0);
-              },
             ),
           ],
         ),
@@ -1169,20 +1370,72 @@ class _StockItem {
 class _ResaLine {
   _ResaLine({
     required this.item,
+    required this.mode,
     required this.debut,
     required this.fin,
     required num montant,
-  })  : montantCtrl = TextEditingController(text: _plain(montant)),
-        montant = montant;
+    num qte = 1,
+    num prixUnitaire = 0,
+  })  : qte = qte,
+        prixUnitaire = prixUnitaire,
+        montant = montant,
+        montantCtrl = TextEditingController(text: _plain(montant)),
+        qteCtrl = TextEditingController(text: _plain(qte)),
+        puCtrl = TextEditingController(
+          text: prixUnitaire > 0 ? _plain(prixUnitaire) : '',
+        );
 
   final _StockItem item;
   final TextEditingController montantCtrl;
+  final TextEditingController qteCtrl;
+  final TextEditingController puCtrl;
+  String mode;
   DateTime debut;
   DateTime fin;
   num montant;
+  num qte;
+  num prixUnitaire;
+
+  bool get isCalcMode => mode == 'heure' || mode == 'nuitee';
+
+  void recalcTotal() {
+    final total = (qte * prixUnitaire).round();
+    montant = total > 0 ? total : 0;
+    montantCtrl.text = montant > 0 ? _plain(montant) : '';
+  }
+
+  void applyMode({
+    required String mode,
+    required num defaultPu,
+    required DateTime Function(DateTime start, num qte) computeEnd,
+  }) {
+    this.mode = mode;
+    if (isCalcMode) {
+      if (qte <= 0) {
+        qte = 1;
+        qteCtrl.text = '1';
+      }
+      if (prixUnitaire <= 0) {
+        prixUnitaire = defaultPu;
+        puCtrl.text = defaultPu > 0 ? _plain(defaultPu) : '';
+      }
+      recalcTotal();
+      fin = computeEnd(debut, qte);
+    } else {
+      if (montant <= 0 && prixUnitaire > 0) {
+        montant = prixUnitaire;
+        montantCtrl.text = _plain(montant);
+      }
+      if (!fin.isAfter(debut)) {
+        fin = computeEnd(debut, 1);
+      }
+    }
+  }
 
   void dispose() {
     montantCtrl.dispose();
+    qteCtrl.dispose();
+    puCtrl.dispose();
   }
 }
 
