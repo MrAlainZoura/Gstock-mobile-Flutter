@@ -1,0 +1,220 @@
+================================================================================
+  GStock Mobile (Flutter) — Documentation développeur
+================================================================================
+  Projet   : gstock (package Flutter)
+  Backend  : API Laravel GStock — `{APP_URL}/api`
+  Branche  : voir dépôt git local
+  Version  : 1.0.0+1 (pubspec.yaml)
+================================================================================
+
+
+1. PRÉSENTATION
+---------------
+Application mobile Flutter du logiciel de gestion de stock / points de vente
+GStock. Elle consomme la même API que le frontend web Blade.
+
+Fonctionnalités principales :
+  - Authentification JWT (login, refresh, logout, mot de passe)
+  - Points de vente (dépôts), dashboard, stock
+  - Ventes, compensation, créances, corbeille
+  - Réservations (forfait / heure / nuitée), créances, corbeille
+  - Approvisionnements, transferts, clients, produits, utilisateurs
+  - Droits par rôle + verrouillage si abonnement dépôt inactif
+
+
+2. PRÉREQUIS
+------------
+  - Flutter SDK (SDK Dart ^3.9.2 — voir pubspec.yaml)
+  - Android SDK / JDK (builds Android : JDK 17+ ; JDK 24/25 nécessite le flag
+    native-access déjà présent dans android/gradlew et gradle.properties)
+  - Backend GStock Laravel démarré et accessible (ex. php artisan serve)
+
+
+3. DÉMARRAGE RAPIDE
+-------------------
+  cd "Gstock-mobile-Flutter"
+  flutter pub get
+
+  # Configurer l’URL API (obligatoire selon la cible)
+  # Éditer : lib/utils/constants.dart → baseUrl
+
+  flutter run                 # device / émulateur connecté
+  flutter build apk           # APK release → build/app/outputs/flutter-apk/
+
+
+4. CONFIGURATION API (lib/utils/constants.dart)
+-----------------------------------------------
+  const String baseUrl = "http://127.0.0.1:8000/api";
+
+  Cibles courantes :
+    - iOS simulateur / desktop Linux-macOS : http://127.0.0.1:8000/api
+    - Émulateur Android                   : http://10.0.2.2:8000/api
+    - Téléphone physique (même LAN)       : http://192.168.x.x:8000/api
+    - Production                          : https://votre-domaine/api
+
+  uploadsUrl(folder, fileName)
+    Construit l’URL publique d’un fichier uploadé :
+    `{APP_URL}/uploads/{folder}/{file}` (retire le suffixe /api de baseUrl).
+
+  Clés SharedPreferences :
+    jwt_token, user, user_role, depot_catalog_{id}
+
+  Android : cleartext HTTP autorisé via
+    android/app/src/main/AndroidManifest.xml → usesCleartextTraffic="true"
+    (nécessaire en local http:// ; à restreindre en prod HTTPS).
+
+
+5. ARCHITECTURE DU CODE
+-----------------------
+  lib/
+    main.dart              Entrée : MaterialApp + AuthGate + navigatorKey
+    api/                   Client HTTP + services métier + session
+    models/                Modèles JSON (Depot, Vente, Reservation, …)
+    mapper/                Mapping / normalisation si besoin
+    pages/                 Écrans UI par domaine
+      auth_gate.dart       Route initiale selon token
+      login_page.dart
+      home.dart
+      depot/               Liste, dashboard, stock, création
+      vente/               CRUD, créances, trashed, compensation
+      reservation/         CRUD, créances, trashed (tarification)
+      appro/               Approvisionnements
+      transfert/           Transferts inter-dépôts
+      client/              Clients
+      produit/             Détail produit
+      user/                Utilisateurs + profil
+    utils/                 Thème, droits, dates, formatage, constantes
+    widgets/               Nav courbe, dialogs, graphiques, actions compte
+    assets/branding/       Icône app
+
+  Couche réseau :
+    ApiClient (singleton)
+      - Bearer JWT
+      - JSON + multipart
+      - Sur 401 : PUT auth/refresh puis retry ; sinon clear session → login
+    *Service (Auth, Depot, Vente, Reservation, …)
+      - Un fichier par domaine, appels relatifs à baseUrl
+
+  Cache catalogue dépôt :
+    DepotCatalogStore (SharedPreferences)
+      - Produits / devises du formulaire vente & réservation
+      - Lecture cache puis refresh fond ; invalidation après vente
+
+
+6. AUTHENTIFICATION & SESSION
+-----------------------------
+  Flux :
+    1. AuthGate lit le token local
+    2. Login → AuthService.login → ApiClient.saveToken + user/role
+    3. Requêtes protégées via Authorization: Bearer …
+    4. 401 → refresh ; échec → clearToken + redirect /login
+       (appNavigatorKey dans session_guard.dart)
+
+  AuthService : login, me, logout, refresh, updatePassword, resetPassword
+
+
+7. DROITS D’ACCÈS (lib/utils/access.dart)
+-----------------------------------------
+  Rôles : user | Administrateur | Super admin
+  Alignés sur les vues Blade web.
+
+  Visibilité dépôts :
+    Super admin     → tous
+    Administrateur  → ses PDV + affectations
+    user            → affectations (depotUser) seules
+
+  Abonnement dépôt (Depot.abonnementCurrent) :
+    - Super admin : toujours actif
+    - Sinon : canWrite = false si abonnement inactif
+    - Consultation souvent limitée au mois en cours (period lock)
+
+
+8. MODULES MÉTIER (aperçu)
+--------------------------
+  Ventes
+    Payload : produits { "<id>": { "<qte>": <prix_total> } }
+    Créances, soft-delete / restore / force-delete
+    Compensation (compassassion_*)
+
+  Réservations
+    Payload : reservations { "<produit_id>": { startAt, endAt, montant } }
+    Montants stockés en CDF côté API (conversion taux côté client)
+    Mode tarification (UI only, comme le web) :
+      forfait  → montant + début/fin manuels ; défaut fin = début + 2h30
+      heure    → qté heures × P.U. ; fin auto = début + qté h
+      nuitée   → qté nuitées × P.U. ; fin auto = début + qté j
+    Pièce d’identité client (type, n°, photo) — champs client, multipart
+
+  Approvisionnements / Transferts / Clients / Produits / Users
+    Services dédiés dans lib/api/ ; écrans dans lib/pages/
+
+
+9. DÉPENDANCES PRINCIPALES
+--------------------------
+  http, http_parser     Client REST + multipart
+  shared_preferences    Token, user, cache catalogue
+  image_picker          Photo pièce identité (réservation)
+  cupertino_icons
+
+
+10. BUILD ANDROID — NOTES
+-------------------------
+  Fichiers Gradle :
+    android/settings.gradle.kts   AGP / Kotlin plugins
+    android/app/build.gradle.kts  applicationId com.example.gstock
+    android/gradle.properties     jvmargs + flags AGP
+    android/gradlew[.bat]         DEFAULT_JVM_OPTS native-access (JDK 24+)
+
+  Warning JDK 24/25 « restricted method System::load » :
+    Cause  : Gradle native-platform appelle System::load sans flag
+    Fix    : --enable-native-access=ALL-UNNAMED
+             (déjà dans gradlew + org.gradle.jvmargs)
+
+  Commandes utiles :
+    flutter clean && flutter pub get
+    flutter build apk
+    cd android && ./gradlew --stop
+
+
+11. CONVENTIONS DE DÉVELOPPEMENT
+--------------------------------
+  - Ne pas committer de secrets ; baseUrl locale reste dans constants.dart
+    (changer avant build device physique / prod).
+  - Préférer les services api/ plutôt que http brut dans les pages.
+  - Montants réservation : toujours convertir en CDF avant POST (_toCdf).
+  - Garder le comportement aligné sur le web Blade quand on porte une feature.
+  - Commits / PR : uniquement sur demande explicite.
+
+
+12. FICHIERS CLÉS À CONNAÎTRE
+-----------------------------
+  lib/utils/constants.dart     URL API + storage keys + uploadsUrl
+  lib/api/api_client.dart      JWT, refresh, multipart
+  lib/utils/access.dart        Rôles et abonnement
+  lib/api/depot_catalog.dart   Cache stock/formulaires
+  lib/pages/auth_gate.dart     Bootstrap session
+  lib/pages/reservation/create.dart   Modes forfait / heure / nuitée
+  android/app/src/main/AndroidManifest.xml   permissions + cleartext
+
+
+13. DÉPANNAGE COURANT
+---------------------
+  Connexion API impossible
+    → Vérifier baseUrl (127.0.0.1 vs 10.0.2.2 vs IP LAN)
+    → Backend up ? CORS / firewall ?
+    → Cleartext : Manifest usesCleartextTraffic
+
+  Déconnexion intempestive
+    → Token expiré + refresh KO ; vérifier PUT /auth/refresh côté API
+
+  Formulaire vente/résa sans produits
+    → DepotCatalogStore / endpoint create form dépôt ; vider prefs si cache pourri
+
+  Build Gradle warning native-access
+    → Voir §10 ; relancer ./gradlew --stop puis rebuild
+
+
+================================================================================
+  Fin de la documentation développeur — mettre à jour ce fichier quand
+  l’API, les modules ou la config build changent de façon significative.
+================================================================================
