@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../api/depot_catalog.dart';
+import '../../api/page_cache.dart';
 import '../../api/vente_service.dart';
 import '../../models/depot.dart';
 import '../../models/vente.dart';
@@ -35,6 +36,12 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
   String? _error;
   Access _access = Access();
 
+  String get _cacheKey => PageCache.ventes(
+        widget.depot.id,
+        from: _period.from,
+        to: _period.to,
+      );
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +49,11 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
     NavRestore.save(screen: NavRestore.ventes, depotId: widget.depot.id);
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
+    }
+    final cached = PageCache.peek<List<Vente>>(_cacheKey);
+    if (cached != null) {
+      _ventes = cached;
+      _loading = false;
     }
     _load();
     unawaited(DepotCatalogStore.refreshInBackground(widget.depot.id));
@@ -54,10 +66,13 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final hadData = _ventes.isNotEmpty;
+    if (!hadData) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final access = await Access.load();
       final all = await VenteService().getByDepot(
@@ -68,16 +83,21 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
       final filtered = all
           .where((v) => v.createdAt == null || _period.contains(v.createdAt))
           .toList();
+      PageCache.put(_cacheKey, filtered);
+      for (final v in filtered) {
+        PageCache.put(PageCache.vente(v.id), v);
+      }
       if (!mounted) return;
       setState(() {
         _access = access;
         _ventes = filtered;
         _loading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        if (!hadData) _error = e.toString();
         _loading = false;
       });
     }
@@ -193,7 +213,17 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
                   value: _period,
                   lockedToMonth: _access.getPeriodLockedToMonth(widget.depot),
                   onChanged: (range) {
-                    setState(() => _period = range);
+                    setState(() {
+                      _period = range;
+                      final cached = PageCache.peek<List<Vente>>(_cacheKey);
+                      if (cached != null) {
+                        _ventes = cached;
+                        _loading = false;
+                      } else {
+                        _ventes = [];
+                        _loading = true;
+                      }
+                    });
                     _load();
                   },
                 ),
@@ -281,6 +311,7 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
                                           builder: (_) => VenteShowPage(
                                             venteId: vente.id,
                                             depot: widget.depot,
+                                            initialVente: vente,
                                           ),
                                         ),
                                       );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../api/api_response.dart';
+import '../../api/page_cache.dart';
 import '../../api/reservation_service.dart';
 import '../../models/depot.dart';
 import '../../models/reservation.dart';
@@ -19,10 +20,12 @@ class ReservationShowPage extends StatefulWidget {
     super.key,
     required this.reservationId,
     this.depot,
+    this.initialReservation,
   });
 
   final int reservationId;
   final Depot? depot;
+  final Reservation? initialReservation;
 
   @override
   State<ReservationShowPage> createState() => _ReservationShowPageState();
@@ -45,8 +48,16 @@ class _ReservationShowPageState extends State<ReservationShowPage> {
       depotId: widget.depot?.id,
       entityId: widget.reservationId,
     );
+    final cached = widget.initialReservation ??
+        PageCache.peek<Reservation>(_cacheKey);
+    if (cached != null && cached.id == widget.reservationId) {
+      _reservation = cached;
+      _loading = false;
+    }
     _load();
   }
+
+  String get _cacheKey => PageCache.reservation(widget.reservationId);
 
   @override
   void dispose() {
@@ -55,25 +66,31 @@ class _ReservationShowPageState extends State<ReservationShowPage> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final hadData = _reservation != null;
+    if (!hadData) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final results = await Future.wait([
         ReservationService().getById(widget.reservationId),
         Access.load(),
       ]);
       if (!mounted) return;
+      final reservation = results[0] as Reservation;
+      PageCache.put(_cacheKey, reservation);
       setState(() {
-        _reservation = results[0] as Reservation;
+        _reservation = reservation;
         _access = results[1] as Access;
         _loading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        if (!hadData) _error = e.toString();
         _loading = false;
       });
     }
@@ -112,6 +129,8 @@ class _ReservationShowPageState extends State<ReservationShowPage> {
     if (!ok || !mounted) return;
     try {
       await ReservationService().delete(widget.reservationId);
+      PageCache.invalidatePrefix('reservations:');
+      PageCache.remove(_cacheKey);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Réservation supprimée (corbeille)")),

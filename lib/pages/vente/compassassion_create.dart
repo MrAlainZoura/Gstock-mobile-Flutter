@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../api/api_response.dart';
 import '../../api/compassassion_service.dart';
 import '../../api/depot_catalog.dart';
+import '../../api/page_cache.dart';
 import '../../api/vente_service.dart';
 import '../../models/depot.dart';
 import '../../models/produit.dart';
@@ -220,6 +221,9 @@ class _CompassassionCreatePageState extends State<CompassassionCreatePage> {
         // ignore: discarded_futures
         DepotCatalogStore.refreshInBackground(depotId);
       }
+      PageCache.invalidatePrefix('ventes:');
+      PageCache.invalidatePrefix('compassassions:');
+      PageCache.put(PageCache.vente(updated.id), updated);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Compassassion enregistrée')),
@@ -230,6 +234,7 @@ class _CompassassionCreatePageState extends State<CompassassionCreatePage> {
           builder: (_) => VenteShowPage(
             venteId: widget.venteId,
             depot: widget.depot,
+            initialVente: updated,
           ),
         ),
       );

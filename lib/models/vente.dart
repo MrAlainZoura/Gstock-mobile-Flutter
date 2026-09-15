@@ -211,7 +211,20 @@ extension VenteDisplay on Vente {
 
   List<VenteLigne> get lignesCompassassion => _parseLignes(compassassion);
 
-  bool get hasCompassassion => lignesCompassassion.isNotEmpty;
+  bool get hasCompassassion =>
+      (compassassion ?? []).whereType<Map>().isNotEmpty ||
+      lignesCompassassion.isNotEmpty;
+
+  /// Ids API des lignes compassassion (`DELETE /compassassions/{id}`).
+  List<int> get compassassionIds {
+    final ids = <int>[];
+    for (final raw in compassassion ?? const []) {
+      if (raw is! Map) continue;
+      final id = asInt(raw['id']);
+      if (id > 0) ids.add(id);
+    }
+    return ids;
+  }
 
   /// Produits facturés actuellement (compassassion si elle existe).
   List<VenteLigne> get lignesActives =>

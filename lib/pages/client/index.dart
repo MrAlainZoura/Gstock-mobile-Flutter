@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../api/client_service.dart';
+import '../../api/page_cache.dart';
 import '../../models/client.dart';
 import '../../models/depot.dart';
 import '../../utils/app_theme.dart';
@@ -27,11 +28,19 @@ class _ClientIndexPageState extends State<ClientIndexPage> {
   String _query = '';
   final _search = TextEditingController();
 
+  String get _cacheKey =>
+      '${PageCache.clients(widget.depot.id)}:${_period.name}';
+
   @override
   void initState() {
     super.initState();
     // ignore: discarded_futures
     NavRestore.save(screen: NavRestore.clients, depotId: widget.depot.id);
+    final cached = PageCache.peek<List<Client>>(_cacheKey);
+    if (cached != null) {
+      _clients = cached;
+      _loading = false;
+    }
     _load();
   }
 
@@ -42,23 +51,28 @@ class _ClientIndexPageState extends State<ClientIndexPage> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final hadData = _clients.isNotEmpty;
+    if (!hadData) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final list = _period == _ClientPeriod.month
           ? await ClientService().getMensuel(widget.depot.id)
           : await ClientService().getAnnuel(widget.depot.id);
+      PageCache.put(_cacheKey, list);
       if (!mounted) return;
       setState(() {
         _clients = list;
         _loading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        if (!hadData) _error = e.toString();
         _loading = false;
       });
     }
@@ -93,7 +107,18 @@ class _ClientIndexPageState extends State<ClientIndexPage> {
                       label: Text('Année $year'),
                       selected: _period == _ClientPeriod.year,
                       onSelected: (_) {
-                        setState(() => _period = _ClientPeriod.year);
+                        setState(() {
+                          _period = _ClientPeriod.year;
+                          final cached =
+                              PageCache.peek<List<Client>>(_cacheKey);
+                          if (cached != null) {
+                            _clients = cached;
+                            _loading = false;
+                          } else {
+                            _clients = [];
+                            _loading = true;
+                          }
+                        });
                         _load();
                       },
                       selectedColor: AppColors.blue,
@@ -108,7 +133,18 @@ class _ClientIndexPageState extends State<ClientIndexPage> {
                       label: const Text('Mois en cours'),
                       selected: _period == _ClientPeriod.month,
                       onSelected: (_) {
-                        setState(() => _period = _ClientPeriod.month);
+                        setState(() {
+                          _period = _ClientPeriod.month;
+                          final cached =
+                              PageCache.peek<List<Client>>(_cacheKey);
+                          if (cached != null) {
+                            _clients = cached;
+                            _loading = false;
+                          } else {
+                            _clients = [];
+                            _loading = true;
+                          }
+                        });
                         _load();
                       },
                       selectedColor: AppColors.blue,

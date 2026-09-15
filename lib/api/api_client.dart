@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/constants.dart';
 import 'api_response.dart';
+import 'page_cache.dart';
 import 'session_guard.dart';
 
 /// Client HTTP unique pour `{baseUrl}` :
@@ -41,6 +42,7 @@ class ApiClient {
     for (final key in catalogKeys) {
       await prefs.remove(key);
     }
+    PageCache.clear();
   }
 
   Uri _uri(String path) {

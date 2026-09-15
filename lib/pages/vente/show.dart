@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../api/api_response.dart';
+import '../../api/compassassion_service.dart';
+import '../../api/page_cache.dart';
 import '../../api/vente_service.dart';
 import '../../models/depot.dart';
 import '../../models/vente.dart';
@@ -13,10 +15,17 @@ import 'create.dart';
 
 /// Détail `GET /ventes/{id}` + paiement créance.
 class VenteShowPage extends StatefulWidget {
-  const VenteShowPage({super.key, required this.venteId, this.depot});
+  const VenteShowPage({
+    super.key,
+    required this.venteId,
+    this.depot,
+    this.initialVente,
+  });
 
   final int venteId;
   final Depot? depot;
+  /// Affichage immédiat si fourni (évite le spinner au push).
+  final Vente? initialVente;
 
   @override
   State<VenteShowPage> createState() => _VenteShowPageState();
@@ -39,8 +48,16 @@ class _VenteShowPageState extends State<VenteShowPage> {
       depotId: widget.depot?.id,
       entityId: widget.venteId,
     );
+    final cached =
+        widget.initialVente ?? PageCache.peek<Vente>(_venteCacheKey);
+    if (cached != null && cached.id == widget.venteId) {
+      _vente = cached;
+      _loading = false;
+    }
     _load();
   }
+
+  String get _venteCacheKey => PageCache.vente(widget.venteId);
 
   @override
   void dispose() {
@@ -49,25 +66,31 @@ class _VenteShowPageState extends State<VenteShowPage> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final hadData = _vente != null;
+    if (!hadData) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final results = await Future.wait([
         VenteService().getById(widget.venteId),
         Access.load(),
       ]);
       if (!mounted) return;
+      final vente = results[0] as Vente;
+      PageCache.put(_venteCacheKey, vente);
       setState(() {
-        _vente = results[0] as Vente;
+        _vente = vente;
         _access = results[1] as Access;
         _loading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        if (!hadData) _error = e.toString();
         _loading = false;
       });
     }
@@ -97,18 +120,44 @@ class _VenteShowPageState extends State<VenteShowPage> {
 
   Future<void> _delete() async {
     if (!_access.canDeleteVente) return;
+    final vente = _vente;
+    final hasComp = vente?.hasCompassassion ?? false;
     final ok = await confirmAction(
       context,
-      title: 'Supprimer cette vente ?',
-      message:
-          'La vente sera envoyée à la corbeille. Cette action est réservée aux administrateurs.',
+      title: hasComp
+          ? 'Supprimer compassassion puis vente ?'
+          : 'Supprimer cette vente ?',
+      message: hasComp
+          ? 'La compassassion sera annulée en premier, puis la vente ira à la corbeille.'
+          : 'La vente sera envoyée à la corbeille. Cette action est réservée aux administrateurs.',
     );
     if (!ok || !mounted) return;
     try {
+      // Compassassion d'abord (stock), sinon suppression directe de la vente.
+      if (hasComp && vente != null) {
+        final ids = vente.compassassionIds;
+        if (ids.isEmpty) {
+          throw ApiException(
+            'Compassassion détectée mais identifiant introuvable',
+          );
+        }
+        for (final id in ids) {
+          await CompassassionService().delete(id);
+        }
+      }
       await VenteService().delete(widget.venteId);
+      PageCache.invalidatePrefix('ventes:');
+      PageCache.invalidatePrefix('compassassions:');
+      PageCache.remove(_venteCacheKey);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Vente supprimée (corbeille)")),
+        SnackBar(
+          content: Text(
+            hasComp
+                ? 'Compassassion annulée, vente supprimée (corbeille)'
+                : 'Vente supprimée (corbeille)',
+          ),
+        ),
       );
       Navigator.pop(context, true);
     } on ApiException catch (e) {

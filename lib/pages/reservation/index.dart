@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../api/depot_catalog.dart';
+import '../../api/page_cache.dart';
 import '../../api/reservation_service.dart';
 import '../../models/depot.dart';
 import '../../models/reservation.dart';
@@ -35,6 +36,12 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
   String? _error;
   Access _access = Access();
 
+  String get _cacheKey => PageCache.reservations(
+        widget.depot.id,
+        from: _period.from,
+        to: _period.to,
+      );
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +52,11 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
     );
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
+    }
+    final cached = PageCache.peek<List<Reservation>>(_cacheKey);
+    if (cached != null) {
+      _reservations = cached;
+      _loading = false;
     }
     _load();
     unawaited(DepotCatalogStore.refreshInBackground(widget.depot.id));
@@ -57,10 +69,13 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final hadData = _reservations.isNotEmpty;
+    if (!hadData) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final access = await Access.load();
       final all = await ReservationService().getByDepot(
@@ -71,16 +86,21 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
       final filtered = all
           .where((r) => r.createdAt == null || _period.contains(r.createdAt))
           .toList();
+      PageCache.put(_cacheKey, filtered);
+      for (final r in filtered) {
+        PageCache.put(PageCache.reservation(r.id), r);
+      }
       if (!mounted) return;
       setState(() {
         _access = access;
         _reservations = filtered;
         _loading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        if (!hadData) _error = e.toString();
         _loading = false;
       });
     }
@@ -176,7 +196,18 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
                   value: _period,
                   lockedToMonth: _access.getPeriodLockedToMonth(widget.depot),
                   onChanged: (range) {
-                    setState(() => _period = range);
+                    setState(() {
+                      _period = range;
+                      final cached =
+                          PageCache.peek<List<Reservation>>(_cacheKey);
+                      if (cached != null) {
+                        _reservations = cached;
+                        _loading = false;
+                      } else {
+                        _reservations = [];
+                        _loading = true;
+                      }
+                    });
                     _load();
                   },
                 ),
@@ -259,6 +290,7 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
                                           builder: (_) => ReservationShowPage(
                                             reservationId: row.id,
                                             depot: widget.depot,
+                                            initialReservation: row,
                                           ),
                                         ),
                                       );

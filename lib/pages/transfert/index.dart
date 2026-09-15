@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../api/page_cache.dart';
 import '../../api/transfert_service.dart';
 import '../../models/depot.dart';
 import '../../models/transfert.dart';
@@ -30,6 +31,12 @@ class _TransfertIndexPageState extends State<TransfertIndexPage> {
   List<Transfert> _all = [];
   Access _access = Access();
 
+  String get _cacheKey => PageCache.transferts(
+        widget.depot.id,
+        from: _period.from,
+        to: _period.to,
+      );
+
   @override
   void initState() {
     super.initState();
@@ -37,6 +44,11 @@ class _TransfertIndexPageState extends State<TransfertIndexPage> {
     NavRestore.save(screen: NavRestore.transferts, depotId: widget.depot.id);
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
+    }
+    final cached = PageCache.peek<List<Transfert>>(_cacheKey);
+    if (cached != null) {
+      _all = cached;
+      _loading = false;
     }
     _load();
   }
@@ -48,10 +60,13 @@ class _TransfertIndexPageState extends State<TransfertIndexPage> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final hadData = _all.isNotEmpty;
+    if (!hadData) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final access = await Access.load();
       final items = await TransfertService().getByDepot(
@@ -59,16 +74,18 @@ class _TransfertIndexPageState extends State<TransfertIndexPage> {
         from: _period.from,
         to: _period.to,
       );
+      PageCache.put(_cacheKey, items);
       if (!mounted) return;
       setState(() {
         _access = access;
         _all = items;
         _loading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        if (!hadData) _error = e.toString();
         _loading = false;
       });
     }
@@ -99,7 +116,17 @@ class _TransfertIndexPageState extends State<TransfertIndexPage> {
                   value: _period,
                   lockedToMonth: _access.getPeriodLockedToMonth(widget.depot),
                   onChanged: (range) {
-                    setState(() => _period = range);
+                    setState(() {
+                      _period = range;
+                      final cached = PageCache.peek<List<Transfert>>(_cacheKey);
+                      if (cached != null) {
+                        _all = cached;
+                        _loading = false;
+                      } else {
+                        _all = [];
+                        _loading = true;
+                      }
+                    });
                     _load();
                   },
                 ),

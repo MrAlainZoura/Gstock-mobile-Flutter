@@ -6,6 +6,7 @@ import '../../api/api_response.dart';
 import '../../api/approvisionnement_service.dart';
 import '../../api/auth_service.dart';
 import '../../api/depot_catalog.dart';
+import '../../api/page_cache.dart';
 import '../../models/depot.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
@@ -34,6 +35,8 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
   List<Approvisionnement> _all = [];
   Access _access = Access();
 
+  String get _cacheKey => PageCache.appros(widget.depot.id);
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +44,11 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
     NavRestore.save(screen: NavRestore.appros, depotId: widget.depot.id);
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
+    }
+    final cached = PageCache.peek<List<Approvisionnement>>(_cacheKey);
+    if (cached != null) {
+      _all = cached;
+      _loading = false;
     }
     _load();
   }
@@ -52,10 +60,13 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final hadData = _all.isNotEmpty;
+    if (!hadData) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final results = await Future.wait([
         ApprovisionnementService().listByDepot(widget.depot.id),
@@ -68,16 +79,18 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
           .whereType<Map>()
           .map((e) => Approvisionnement.fromJson(Map<String, dynamic>.from(e)))
           .toList();
+      PageCache.put(_cacheKey, items);
       if (!mounted) return;
       setState(() {
         _all = items;
         _access = access;
         _loading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        if (!hadData) _error = e.toString();
         _loading = false;
       });
     }
@@ -119,6 +132,7 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
     if (!_access.canDeleteAppro) return;
     try {
       await ApprovisionnementService().delete(item.id);
+      PageCache.invalidatePrefix('appros:');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Approvisionnement supprimé')),

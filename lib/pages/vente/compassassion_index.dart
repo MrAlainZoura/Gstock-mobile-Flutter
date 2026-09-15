@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../api/compassassion_service.dart';
+import '../../api/page_cache.dart';
 import '../../models/depot.dart';
 import '../../models/vente.dart';
 import '../../utils/app_theme.dart';
@@ -26,6 +27,8 @@ class _CompassassionIndexPageState extends State<CompassassionIndexPage> {
   bool _loading = true;
   String? _error;
 
+  String get _cacheKey => PageCache.compassassions(widget.depot.id);
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +37,11 @@ class _CompassassionIndexPageState extends State<CompassassionIndexPage> {
       screen: NavRestore.compassassions,
       depotId: widget.depot.id,
     );
+    final cached = PageCache.peek<List<Vente>>(_cacheKey);
+    if (cached != null) {
+      _items = _filterPeriod(cached);
+      _loading = false;
+    }
     _load();
   }
 
@@ -43,26 +51,38 @@ class _CompassassionIndexPageState extends State<CompassassionIndexPage> {
     super.dispose();
   }
 
+  List<Vente> _filterPeriod(List<Vente> all) {
+    return all.where((v) {
+      final date = _compassDate(v) ?? v.createdAt;
+      return date == null || _period.contains(date);
+    }).toList();
+  }
+
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    final hadData = _items.isNotEmpty;
+    if (!hadData) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final all = await CompassassionService().listByDepot(widget.depot.id);
-      final filtered = all.where((v) {
-        final date = _compassDate(v) ?? v.createdAt;
-        return date == null || _period.contains(date);
-      }).toList();
+      PageCache.put(_cacheKey, all);
+      for (final v in all) {
+        PageCache.put(PageCache.vente(v.id), v);
+      }
+      final filtered = _filterPeriod(all);
       if (!mounted) return;
       setState(() {
         _items = filtered;
         _loading = false;
+        _error = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        if (!hadData) _error = e.toString();
         _loading = false;
       });
     }
@@ -105,7 +125,17 @@ class _CompassassionIndexPageState extends State<CompassassionIndexPage> {
                   value: _period,
                   lockedToMonth: !widget.depot.abonnementCurrent,
                   onChanged: (range) {
-                    setState(() => _period = range);
+                    setState(() {
+                      _period = range;
+                      final cached = PageCache.peek<List<Vente>>(_cacheKey);
+                      if (cached != null) {
+                        _items = _filterPeriod(cached);
+                        _loading = false;
+                      } else {
+                        _items = [];
+                        _loading = true;
+                      }
+                    });
                     _load();
                   },
                 ),
@@ -193,6 +223,7 @@ class _CompassassionIndexPageState extends State<CompassassionIndexPage> {
                                           builder: (_) => VenteShowPage(
                                             venteId: vente.id,
                                             depot: widget.depot,
+                                            initialVente: vente,
                                           ),
                                         ),
                                       );
