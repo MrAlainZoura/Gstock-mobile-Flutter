@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../api/compassassion_service.dart';
+import '../../api/depot_ops_store.dart';
 import '../../api/page_cache.dart';
 import '../../models/depot.dart';
 import '../../models/vente.dart';
@@ -24,6 +27,8 @@ class _CompassassionIndexPageState extends State<CompassassionIndexPage> {
   final _search = TextEditingController();
   String _query = '';
   List<Vente> _items = [];
+  /// Snapshot mois complet (disque / API), filtré ensuite par `_period`.
+  List<Vente> _allMonth = [];
   bool _loading = true;
   String? _error;
 
@@ -37,12 +42,39 @@ class _CompassassionIndexPageState extends State<CompassassionIndexPage> {
       screen: NavRestore.compassassions,
       depotId: widget.depot.id,
     );
-    final cached = PageCache.peek<List<Vente>>(_cacheKey);
-    if (cached != null) {
-      _items = _filterPeriod(cached);
-      _loading = false;
+    unawaited(_bootstrap());
+  }
+
+  Future<void> _bootstrap() async {
+    await DepotOpsStore.markOpened(widget.depot.id);
+    final mem = PageCache.peek<List<Vente>>(_cacheKey);
+    if (mem != null) {
+      _allMonth = mem;
+      if (mounted) {
+        setState(() {
+          _items = _filterPeriod(mem);
+          _loading = false;
+        });
+      }
+    } else {
+      await _hydrateFromDisk();
     }
-    _load();
+    await _load();
+  }
+
+  Future<void> _hydrateFromDisk() async {
+    final disk = await DepotOpsStore.readMonth(
+      widget.depot.id,
+      DepotOpsStore.compassassions,
+    );
+    if (disk == null || !mounted) return;
+    final all = disk.map(Vente.fromJson).toList();
+    _allMonth = all;
+    PageCache.put(_cacheKey, all);
+    setState(() {
+      _items = _filterPeriod(all);
+      _loading = false;
+    });
   }
 
   @override
@@ -59,7 +91,7 @@ class _CompassassionIndexPageState extends State<CompassassionIndexPage> {
   }
 
   Future<void> _load() async {
-    final hadData = _items.isNotEmpty;
+    final hadData = _items.isNotEmpty || _allMonth.isNotEmpty;
     if (!hadData) {
       setState(() {
         _loading = true;
@@ -72,6 +104,12 @@ class _CompassassionIndexPageState extends State<CompassassionIndexPage> {
       for (final v in all) {
         PageCache.put(PageCache.vente(v.id), v);
       }
+      await DepotOpsStore.writeMonth(
+        widget.depot.id,
+        DepotOpsStore.compassassions,
+        all.map((v) => v.toCacheJson()).toList(),
+      );
+      _allMonth = all;
       final filtered = _filterPeriod(all);
       if (!mounted) return;
       setState(() {
@@ -127,9 +165,8 @@ class _CompassassionIndexPageState extends State<CompassassionIndexPage> {
                   onChanged: (range) {
                     setState(() {
                       _period = range;
-                      final cached = PageCache.peek<List<Vente>>(_cacheKey);
-                      if (cached != null) {
-                        _items = _filterPeriod(cached);
+                      if (_allMonth.isNotEmpty) {
+                        _items = _filterPeriod(_allMonth);
                         _loading = false;
                       } else {
                         _items = [];

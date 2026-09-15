@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../api/client_service.dart';
+import '../../api/depot_ops_store.dart';
 import '../../api/page_cache.dart';
 import '../../models/client.dart';
 import '../../models/depot.dart';
@@ -31,17 +34,43 @@ class _ClientIndexPageState extends State<ClientIndexPage> {
   String get _cacheKey =>
       '${PageCache.clients(widget.depot.id)}:${_period.name}';
 
+  String get _opsResource => _period == _ClientPeriod.month
+      ? DepotOpsStore.clientsMonth
+      : DepotOpsStore.clientsYear;
+
   @override
   void initState() {
     super.initState();
     // ignore: discarded_futures
     NavRestore.save(screen: NavRestore.clients, depotId: widget.depot.id);
-    final cached = PageCache.peek<List<Client>>(_cacheKey);
-    if (cached != null) {
-      _clients = cached;
-      _loading = false;
+    unawaited(_bootstrap());
+  }
+
+  Future<void> _bootstrap() async {
+    await DepotOpsStore.markOpened(widget.depot.id);
+    final mem = PageCache.peek<List<Client>>(_cacheKey);
+    if (mem != null) {
+      if (mounted) {
+        setState(() {
+          _clients = mem;
+          _loading = false;
+        });
+      }
+    } else {
+      final disk = await DepotOpsStore.readMonth(
+        widget.depot.id,
+        _opsResource,
+      );
+      if (disk != null && mounted) {
+        final list = disk.map(Client.fromJson).toList();
+        PageCache.put(_cacheKey, list);
+        setState(() {
+          _clients = list;
+          _loading = false;
+        });
+      }
     }
-    _load();
+    await _load();
   }
 
   @override
@@ -63,6 +92,11 @@ class _ClientIndexPageState extends State<ClientIndexPage> {
           ? await ClientService().getMensuel(widget.depot.id)
           : await ClientService().getAnnuel(widget.depot.id);
       PageCache.put(_cacheKey, list);
+      await DepotOpsStore.writeMonth(
+        widget.depot.id,
+        _opsResource,
+        list.map((c) => c.toCacheJson()).toList(),
+      );
       if (!mounted) return;
       setState(() {
         _clients = list;

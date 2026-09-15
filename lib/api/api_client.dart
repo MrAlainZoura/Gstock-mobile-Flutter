@@ -35,13 +35,7 @@ class ApiClient {
     await prefs.remove(storageUserKey);
     await prefs.remove(storageRoleKey);
     await prefs.remove(storageNavRestoreKey);
-    final catalogKeys = prefs
-        .getKeys()
-        .where((k) => k.startsWith(storageCatalogPrefix))
-        .toList();
-    for (final key in catalogKeys) {
-      await prefs.remove(key);
-    }
+    // Caches disque (ops + catalogue) conservés : purge après 30 j d’inactivité.
     PageCache.clear();
   }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../api/api_response.dart';
+import '../../api/depot_catalog.dart';
+import '../../api/depot_ops_store.dart';
 import '../../api/page_cache.dart';
 import '../../api/reservation_service.dart';
 import '../../models/depot.dart';
@@ -131,6 +133,12 @@ class _ReservationShowPageState extends State<ReservationShowPage> {
       await ReservationService().delete(widget.reservationId);
       PageCache.invalidatePrefix('reservations:');
       PageCache.remove(_cacheKey);
+      final depotId = widget.depot?.id ?? _reservation?.depotId ?? 0;
+      if (depotId > 0) {
+        await DepotOpsStore.invalidate(depotId, DepotOpsStore.reservations);
+        // ignore: discarded_futures
+        DepotCatalogStore.refreshInBackground(depotId);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Réservation supprimée (corbeille)")),

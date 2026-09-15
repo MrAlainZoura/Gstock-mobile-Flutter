@@ -75,6 +75,29 @@ class Vente {
       'updateTaux': updateTaux,
     };
   }
+
+  /// Snapshot local (liste / détail) — champs nécessaires à l’affichage.
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'depot_id': depotId,
+      'client_id': clientId,
+      'code': code,
+      'type': type,
+      'created_at': createdAt?.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
+      'devise_id': deviseId,
+      'updateTaux': updateTaux,
+      'deleted_at': deletedAt?.toIso8601String(),
+      'paiement': paiement,
+      'venteProduit': produitVente,
+      'compassassion': compassassion,
+      'client': client,
+      'devise': devise,
+      'user': user,
+    };
+  }
 }
 
 /// Payload `POST /ventes`.

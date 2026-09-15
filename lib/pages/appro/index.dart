@@ -6,6 +6,7 @@ import '../../api/api_response.dart';
 import '../../api/approvisionnement_service.dart';
 import '../../api/auth_service.dart';
 import '../../api/depot_catalog.dart';
+import '../../api/depot_ops_store.dart';
 import '../../api/page_cache.dart';
 import '../../models/depot.dart';
 import '../../utils/access.dart';
@@ -45,12 +46,34 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
     }
-    final cached = PageCache.peek<List<Approvisionnement>>(_cacheKey);
-    if (cached != null) {
-      _all = cached;
-      _loading = false;
+    unawaited(_bootstrap());
+  }
+
+  Future<void> _bootstrap() async {
+    await DepotOpsStore.markOpened(widget.depot.id);
+    final mem = PageCache.peek<List<Approvisionnement>>(_cacheKey);
+    if (mem != null) {
+      if (mounted) {
+        setState(() {
+          _all = mem;
+          _loading = false;
+        });
+      }
+    } else {
+      final disk = await DepotOpsStore.readMonth(
+        widget.depot.id,
+        DepotOpsStore.appros,
+      );
+      if (disk != null && mounted) {
+        final items = disk.map(Approvisionnement.fromJson).toList();
+        PageCache.put(_cacheKey, items);
+        setState(() {
+          _all = items;
+          _loading = false;
+        });
+      }
     }
-    _load();
+    await _load();
   }
 
   @override
@@ -80,6 +103,11 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
           .map((e) => Approvisionnement.fromJson(Map<String, dynamic>.from(e)))
           .toList();
       PageCache.put(_cacheKey, items);
+      await DepotOpsStore.writeMonth(
+        widget.depot.id,
+        DepotOpsStore.appros,
+        items.map((e) => e.toCacheJson()).toList(),
+      );
       if (!mounted) return;
       setState(() {
         _all = items;
@@ -115,6 +143,13 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
   Future<void> _confirm(Approvisionnement item) async {
     try {
       await ApprovisionnementService().confirm(item.id, 'one');
+      unawaited(
+        DepotCatalogStore.applyStockInThenRefresh(
+          widget.depot.id,
+          {item.produitId: item.quantite},
+        ),
+      );
+      await DepotOpsStore.invalidate(widget.depot.id, DepotOpsStore.appros);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Approvisionnement confirmé')),
@@ -133,6 +168,7 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
     try {
       await ApprovisionnementService().delete(item.id);
       PageCache.invalidatePrefix('appros:');
+      await DepotOpsStore.invalidate(widget.depot.id, DepotOpsStore.appros);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Approvisionnement supprimé')),

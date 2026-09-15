@@ -104,4 +104,25 @@ class Approvisionnement {
       unite: produit?['unite']?.toString(),
     );
   }
+
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'depot_id': depotId,
+      'produit_id': produitId,
+      'quantite': quantite,
+      'confirmed': confirmed,
+      'created_at': createdAt?.toIso8601String(),
+      'produit': {
+        'id': produitId,
+        'libele': produitLibele,
+        'unite': unite,
+      },
+      'user': {
+        'id': userId,
+        'name': userName,
+      },
+    };
+  }
 }

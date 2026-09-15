@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../api/api_response.dart';
+import '../../api/depot_catalog.dart';
 import '../../api/transfert_service.dart';
 import '../../models/depot.dart';
 import '../../models/transfert.dart';
@@ -139,6 +140,11 @@ class _TransfertCreatePageState extends State<TransfertCreatePage> {
         destinationId: _destination!.id,
         produits: produits,
         description: _description.text.trim(),
+      );
+      // ignore: discarded_futures
+      DepotCatalogStore.applyStockOutThenRefresh(
+        widget.depot.id,
+        {for (final e in produits.entries) int.parse(e.key): e.value},
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

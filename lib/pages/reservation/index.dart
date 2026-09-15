@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../api/depot_catalog.dart';
+import '../../api/depot_ops_store.dart';
 import '../../api/page_cache.dart';
 import '../../api/reservation_service.dart';
 import '../../models/depot.dart';
@@ -42,6 +43,8 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
         to: _period.to,
       );
 
+  PeriodRange get _cacheWindow => DepotOpsStore.cacheWindow();
+
   @override
   void initState() {
     super.initState();
@@ -53,13 +56,64 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
     }
-    final cached = PageCache.peek<List<Reservation>>(_cacheKey);
-    if (cached != null) {
-      _reservations = cached;
-      _loading = false;
+    unawaited(_bootstrap());
+  }
+
+  Future<void> _bootstrap() async {
+    await DepotOpsStore.markOpened(widget.depot.id);
+    final mem = PageCache.peek<List<Reservation>>(_cacheKey);
+    if (mem != null) {
+      if (mounted) {
+        setState(() {
+          _reservations = mem;
+          _loading = false;
+        });
+      }
+    } else {
+      await _hydrateFromDisk();
     }
-    _load();
+    await _load();
     unawaited(DepotCatalogStore.refreshInBackground(widget.depot.id));
+  }
+
+  Future<void> _hydrateFromDisk() async {
+    final disk = await DepotOpsStore.readMonth(
+      widget.depot.id,
+      DepotOpsStore.reservations,
+    );
+    if (disk == null || !mounted) return;
+    final filtered = DepotOpsStore.filterByPeriod(disk, _period)
+        .map(Reservation.fromJson)
+        .toList();
+    PageCache.put(_cacheKey, filtered);
+    setState(() {
+      _reservations = filtered;
+      _loading = false;
+    });
+  }
+
+  Future<void> _persistMonth(List<Reservation> items) async {
+    await DepotOpsStore.writeMonth(
+      widget.depot.id,
+      DepotOpsStore.reservations,
+      items.map((r) => r.toCacheJson()).toList(),
+    );
+  }
+
+  Future<void> _refreshMonthDiskInBackground() async {
+    try {
+      final month = await ReservationService().getByDepot(
+        widget.depot.id,
+        from: _cacheWindow.from,
+        to: _cacheWindow.to,
+      );
+      final filtered = month
+          .where(
+            (r) => r.createdAt == null || _cacheWindow.contains(r.createdAt),
+          )
+          .toList();
+      await _persistMonth(filtered);
+    } catch (_) {}
   }
 
   @override
@@ -89,6 +143,12 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
       PageCache.put(_cacheKey, filtered);
       for (final r in filtered) {
         PageCache.put(PageCache.reservation(r.id), r);
+      }
+      if (_period.preset == PeriodPreset.month ||
+          (_period.to.difference(_period.from).inDays >= 27)) {
+        await _persistMonth(filtered);
+      } else {
+        unawaited(_refreshMonthDiskInBackground());
       }
       if (!mounted) return;
       setState(() {
@@ -208,7 +268,7 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
                         _loading = true;
                       }
                     });
-                    _load();
+                    unawaited(_hydrateFromDisk().then((_) => _load()));
                   },
                 ),
                 const SizedBox(height: 10),

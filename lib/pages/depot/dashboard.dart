@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../api/dashboard_service.dart';
 import '../../api/depot_catalog.dart';
+import '../../api/depot_ops_store.dart';
 import '../../api/depot_service.dart';
 import '../../api/client_service.dart';
 import '../../api/user_service.dart';
@@ -78,6 +79,7 @@ class _DashboardPageState extends State<DashboardPage> {
       List<Produit> stock = [];
       List<User> depotUsers = [];
       if (depot != null) {
+        unawaited(DepotOpsStore.markOpened(depot.id));
         unawaited(DepotCatalogStore.refreshInBackground(depot.id));
         // Users / stats / stock d'abord — clients fidèles en arrière-plan
         // (évite de bloquer SQLite et d'afficher « aucun » utilisateur).

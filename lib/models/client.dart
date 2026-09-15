@@ -55,6 +55,24 @@ class Client {
     );
   }
 
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'id': id,
+      'name': name,
+      'prenom': prenom,
+      'genre': genre,
+      'tel': tel,
+      'adresse': adresse,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
+      'peice_identite': pieceIdentite,
+      'numero_piece': numeroPiece,
+      'image_piece': imagePiece,
+      'ventes_count': ventesCount,
+      'reservations_count': reservationsCount,
+    };
+  }
+
   String get displayName {
     final parts = [name, prenom]
         .where((e) => e != null && e.trim().isNotEmpty)

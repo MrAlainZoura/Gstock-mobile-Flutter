@@ -64,6 +64,27 @@ class Reservation {
       user: json['user'],
     );
   }
+
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'depot_id': depotId,
+      'client_id': clientId,
+      'code': code,
+      'statut': statut,
+      'created_at': createdAt?.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
+      'devise_id': deviseId,
+      'updateTaux': updateTaux,
+      'deleted_at': deletedAt?.toIso8601String(),
+      'paiement': paiement,
+      'reservationProduit': reservationProduit,
+      'client': client,
+      'devise': devise,
+      'user': user,
+    };
+  }
 }
 
 /// Payload `POST /reservations`.

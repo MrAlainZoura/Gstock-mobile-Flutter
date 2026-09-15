@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../api/api_response.dart';
 import '../../api/compassassion_service.dart';
 import '../../api/depot_catalog.dart';
+import '../../api/depot_ops_store.dart';
 import '../../api/page_cache.dart';
 import '../../api/vente_service.dart';
 import '../../models/depot.dart';
@@ -219,7 +220,12 @@ class _CompassassionCreatePageState extends State<CompassassionCreatePage> {
       final depotId = widget.depot?.id ?? updated.depotId;
       if (depotId > 0) {
         // ignore: discarded_futures
-        DepotCatalogStore.refreshInBackground(depotId);
+        DepotCatalogStore.applyStockOutThenRefresh(
+          depotId,
+          {for (final line in _lines) line.item.id: line.qty},
+        );
+        await DepotOpsStore.invalidate(depotId, DepotOpsStore.ventes);
+        await DepotOpsStore.invalidate(depotId, DepotOpsStore.compassassions);
       }
       PageCache.invalidatePrefix('ventes:');
       PageCache.invalidatePrefix('compassassions:');

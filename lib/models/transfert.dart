@@ -52,6 +52,23 @@ class Transfert {
     );
   }
 
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'depot_id': depotId,
+      'code': code,
+      'destination': destination,
+      'description': description,
+      'confirm': confirm,
+      'receptionUser': receptionUser,
+      'created_at': createdAt?.toIso8601String(),
+      'user': user,
+      'depot': depot,
+      'produitTransfert': lignes.map((l) => l.toCacheJson()).toList(),
+    };
+  }
+
   String get initiateur {
     final map = asMap(user);
     if (map == null) return 'Utilisateur';
@@ -108,6 +125,13 @@ class TransfertLigne {
       libele: libele.isEmpty ? 'Produit' : libele,
     );
   }
+
+  Map<String, dynamic> toCacheJson() => {
+        'produit_id': produitId,
+        'quantite': quantite,
+        'libele': libele,
+        'produit': {'id': produitId, 'libele': libele},
+      };
 }
 
 class TransfertDepotOption {

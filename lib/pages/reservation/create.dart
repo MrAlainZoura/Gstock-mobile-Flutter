@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../api/api_response.dart';
 import '../../api/depot_catalog.dart';
+import '../../api/depot_ops_store.dart';
 import '../../api/reservation_service.dart';
 import '../../models/depot.dart';
 import '../../models/produit.dart';
@@ -693,6 +694,9 @@ class _ReservationCreatePageState extends State<ReservationCreatePage> {
         ),
       );
       unawaited(DepotCatalogStore.refreshInBackground(widget.depot.id));
+      unawaited(
+        DepotOpsStore.invalidate(widget.depot.id, DepotOpsStore.reservations),
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Réservation enregistrée")),

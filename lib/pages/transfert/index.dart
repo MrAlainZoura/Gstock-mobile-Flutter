@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../api/depot_ops_store.dart';
 import '../../api/page_cache.dart';
 import '../../api/transfert_service.dart';
 import '../../models/depot.dart';
@@ -37,6 +40,8 @@ class _TransfertIndexPageState extends State<TransfertIndexPage> {
         to: _period.to,
       );
 
+  PeriodRange get _cacheWindow => DepotOpsStore.cacheWindow();
+
   @override
   void initState() {
     super.initState();
@@ -45,12 +50,39 @@ class _TransfertIndexPageState extends State<TransfertIndexPage> {
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
     }
-    final cached = PageCache.peek<List<Transfert>>(_cacheKey);
-    if (cached != null) {
-      _all = cached;
-      _loading = false;
+    unawaited(_bootstrap());
+  }
+
+  Future<void> _bootstrap() async {
+    await DepotOpsStore.markOpened(widget.depot.id);
+    final mem = PageCache.peek<List<Transfert>>(_cacheKey);
+    if (mem != null) {
+      if (mounted) {
+        setState(() {
+          _all = mem;
+          _loading = false;
+        });
+      }
+    } else {
+      await _hydrateFromDisk();
     }
-    _load();
+    await _load();
+  }
+
+  Future<void> _hydrateFromDisk() async {
+    final disk = await DepotOpsStore.readMonth(
+      widget.depot.id,
+      DepotOpsStore.transferts,
+    );
+    if (disk == null || !mounted) return;
+    final filtered = DepotOpsStore.filterByPeriod(disk, _period)
+        .map(Transfert.fromJson)
+        .toList();
+    PageCache.put(_cacheKey, filtered);
+    setState(() {
+      _all = filtered;
+      _loading = false;
+    });
   }
 
   @override
@@ -75,6 +107,29 @@ class _TransfertIndexPageState extends State<TransfertIndexPage> {
         to: _period.to,
       );
       PageCache.put(_cacheKey, items);
+      if (_period.preset == PeriodPreset.month ||
+          (_period.to.difference(_period.from).inDays >= 27)) {
+        await DepotOpsStore.writeMonth(
+          widget.depot.id,
+          DepotOpsStore.transferts,
+          items.map((t) => t.toCacheJson()).toList(),
+        );
+      } else {
+        unawaited(() async {
+          try {
+            final month = await TransfertService().getByDepot(
+              widget.depot.id,
+              from: _cacheWindow.from,
+              to: _cacheWindow.to,
+            );
+            await DepotOpsStore.writeMonth(
+              widget.depot.id,
+              DepotOpsStore.transferts,
+              month.map((t) => t.toCacheJson()).toList(),
+            );
+          } catch (_) {}
+        }());
+      }
       if (!mounted) return;
       setState(() {
         _access = access;
@@ -127,7 +182,7 @@ class _TransfertIndexPageState extends State<TransfertIndexPage> {
                         _loading = true;
                       }
                     });
-                    _load();
+                    unawaited(_hydrateFromDisk().then((_) => _load()));
                   },
                 ),
                 const SizedBox(height: 10),

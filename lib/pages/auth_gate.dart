@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/auth_service.dart';
 import '../api/dashboard_service.dart';
+import '../api/depot_ops_store.dart';
 import '../models/depot.dart';
 import '../utils/access.dart';
 import '../utils/app_theme.dart';
@@ -27,6 +28,8 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _bootstrap() async {
+    // ignore: discarded_futures
+    DepotOpsStore.pruneInactive();
     final auth = AuthService();
     final token = await auth.getToken();
     if (token == null || token.isEmpty) {

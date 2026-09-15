@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../api/depot_catalog.dart';
+import '../../api/depot_ops_store.dart';
 import '../../api/page_cache.dart';
 import '../../api/vente_service.dart';
 import '../../models/depot.dart';
@@ -42,6 +43,8 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
         to: _period.to,
       );
 
+  PeriodRange get _cacheWindow => DepotOpsStore.cacheWindow();
+
   @override
   void initState() {
     super.initState();
@@ -50,13 +53,72 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
     }
-    final cached = PageCache.peek<List<Vente>>(_cacheKey);
-    if (cached != null) {
-      _ventes = cached;
-      _loading = false;
+    unawaited(_bootstrap());
+  }
+
+  Future<void> _bootstrap() async {
+    await DepotOpsStore.markOpened(widget.depot.id);
+    final mem = PageCache.peek<List<Vente>>(_cacheKey);
+    if (mem != null) {
+      if (mounted) {
+        setState(() {
+          _ventes = mem;
+          _loading = false;
+        });
+      }
+    } else {
+      await _hydrateFromDisk();
     }
-    _load();
+    await _load();
     unawaited(DepotCatalogStore.refreshInBackground(widget.depot.id));
+  }
+
+  Future<void> _hydrateFromDisk() async {
+    final disk = await DepotOpsStore.readMonth(
+      widget.depot.id,
+      DepotOpsStore.ventes,
+    );
+    if (disk == null || !mounted) return;
+    final filtered = DepotOpsStore.filterByPeriod(disk, _period)
+        .map(Vente.fromJson)
+        .toList();
+    PageCache.put(_cacheKey, filtered);
+    setState(() {
+      _ventes = filtered;
+      _loading = false;
+    });
+  }
+
+  Future<void> _persistMonth(List<Vente> monthItems) async {
+    await DepotOpsStore.writeMonth(
+      widget.depot.id,
+      DepotOpsStore.ventes,
+      monthItems.map((v) => v.toCacheJson()).toList(),
+    );
+  }
+
+  Future<void> _refreshMonthDiskInBackground() async {
+    try {
+      final month = await VenteService().getByDepot(
+        widget.depot.id,
+        from: _cacheWindow.from,
+        to: _cacheWindow.to,
+      );
+      final filtered = month
+          .where(
+            (v) => v.createdAt == null || _cacheWindow.contains(v.createdAt),
+          )
+          .toList();
+      await _persistMonth(filtered);
+      PageCache.put(
+        PageCache.ventes(
+          widget.depot.id,
+          from: _cacheWindow.from,
+          to: _cacheWindow.to,
+        ),
+        filtered,
+      );
+    } catch (_) {}
   }
 
   @override
@@ -86,6 +148,12 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
       PageCache.put(_cacheKey, filtered);
       for (final v in filtered) {
         PageCache.put(PageCache.vente(v.id), v);
+      }
+      if (_period.preset == PeriodPreset.month ||
+          (_period.to.difference(_period.from).inDays >= 27)) {
+        await _persistMonth(filtered);
+      } else {
+        unawaited(_refreshMonthDiskInBackground());
       }
       if (!mounted) return;
       setState(() {
@@ -224,7 +292,7 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
                         _loading = true;
                       }
                     });
-                    _load();
+                    unawaited(_hydrateFromDisk().then((_) => _load()));
                   },
                 ),
                 const SizedBox(height: 10),

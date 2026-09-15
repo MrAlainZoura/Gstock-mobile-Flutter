@@ -10,6 +10,10 @@ const String storageTokenKey = "jwt_token";
 const String storageUserKey = "user";
 const String storageRoleKey = "user_role";
 const String storageCatalogPrefix = "depot_catalog_";
+/// Ops locales (30 j glissants) par dépôt ouvert : `depot_ops_{id}_{resource}`.
+const String storageOpsPrefix = "depot_ops_";
+/// Liste des dépôts déjà ouverts (cache ops autorisé).
+const String storageOpsOpenedKey = "depot_ops_opened";
 /// Dernier écran ouvert (restauration si la session JWT est encore valide).
 const String storageNavRestoreKey = "nav_restore";
 

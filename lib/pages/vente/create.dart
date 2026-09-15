@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../api/api_response.dart';
 import '../../api/depot_catalog.dart';
+import '../../api/depot_ops_store.dart';
 import '../../api/page_cache.dart';
 import '../../api/vente_service.dart';
 import '../../models/depot.dart';
@@ -279,6 +280,9 @@ class _VenteCreatePageState extends State<VenteCreatePage> {
       );
       PageCache.invalidatePrefix('ventes:');
       PageCache.put(PageCache.vente(created.id), created);
+      unawaited(
+        DepotOpsStore.invalidate(widget.depot.id, DepotOpsStore.ventes),
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Vente enregistrée")),
