@@ -9,6 +9,7 @@ import '../../models/produit.dart';
 import '../../models/vente.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/methode.dart';
+import '../../utils/nav_restore.dart';
 import 'show.dart';
 
 /// Échange produit d'une vente — `POST /compassassions`.
@@ -47,6 +48,12 @@ class _CompassassionCreatePageState extends State<CompassassionCreatePage> {
   @override
   void initState() {
     super.initState();
+    // ignore: discarded_futures
+    NavRestore.save(
+      screen: NavRestore.compassassionCreate,
+      depotId: widget.depot?.id,
+      entityId: widget.venteId,
+    );
     _load();
   }
 
@@ -122,6 +129,17 @@ class _CompassassionCreatePageState extends State<CompassassionCreatePage> {
 
   num get _net => _lines.fold<num>(0, (s, l) => s + l.prixT);
 
+  /// L’API compare / stocke toujours en CDF (comme le web à l’envoi).
+  num get _taux {
+    final t = _vente?.updateTaux ?? 1;
+    return t == 0 ? 1 : t;
+  }
+
+  num _toCdf(num amount) {
+    if (_prixEnCdf) return amount;
+    return amount * _taux;
+  }
+
   List<_StockItem> get _available {
     final selected = _lines.map((l) => l.item.id).toSet();
     final q = _query.trim().toLowerCase();
@@ -179,7 +197,7 @@ class _CompassassionCreatePageState extends State<CompassassionCreatePage> {
         SnackBar(
           backgroundColor: AppColors.red,
           content: Text(
-            'Le nouveau total (${formatMoney(_net)}) doit être ≥ au paiement déjà encaissé (${formatMoney(_paiementDeja)} $_devise)',
+            'Le nouveau total (${formatMoney(_net)}) doit être ≥ au montant précédent (${formatMoney(_paiementDeja)} $_devise)',
           ),
         ),
       );
@@ -188,8 +206,10 @@ class _CompassassionCreatePageState extends State<CompassassionCreatePage> {
 
     setState(() => _saving = true);
     try {
+      // Web convertit en CDF avant POST si le dépôt n’est pas en use_cdf.
       final produits = <String, Map<String, num>>{
-        for (final line in _lines) '${line.item.id}': {'${line.qty}': line.prixT},
+        for (final line in _lines)
+          '${line.item.id}': {'${line.qty}': _toCdf(line.prixT)},
       };
       final updated = await CompassassionService().create(
         venteId: widget.venteId,
@@ -301,7 +321,7 @@ class _CompassassionCreatePageState extends State<CompassassionCreatePage> {
                             ],
                             const SizedBox(height: 12),
                             Text(
-                              'Déjà payé : ${formatMoney(_paiementDeja)} $_devise',
+                              'Montant précédent : ${formatMoney(_paiementDeja)} $_devise',
                               style: const TextStyle(fontWeight: FontWeight.w600),
                             ),
                           ],

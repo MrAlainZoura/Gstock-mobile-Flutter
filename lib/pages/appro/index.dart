@@ -10,6 +10,7 @@ import '../../models/depot.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/methode.dart';
+import '../../utils/nav_restore.dart';
 import '../../utils/period.dart';
 import 'create.dart';
 import '../transfert/index.dart';
@@ -36,6 +37,8 @@ class _ApproIndexPageState extends State<ApproIndexPage> {
   @override
   void initState() {
     super.initState();
+    // ignore: discarded_futures
+    NavRestore.save(screen: NavRestore.appros, depotId: widget.depot.id);
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
     }

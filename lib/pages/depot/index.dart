@@ -6,12 +6,13 @@ import '../../api/depot_catalog.dart';
 import '../../models/depot.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/nav_restore.dart';
 import '../../widgets/account_actions.dart';
 import 'create.dart';
 import 'dashboard.dart';
 import 'show.dart';
 
-class DepotListPage extends StatelessWidget {
+class DepotListPage extends StatefulWidget {
   final List<Depot> depots;
 
   const DepotListPage({
@@ -20,12 +21,24 @@ class DepotListPage extends StatelessWidget {
   });
 
   @override
+  State<DepotListPage> createState() => _DepotListPageState();
+}
+
+class _DepotListPageState extends State<DepotListPage> {
+  @override
+  void initState() {
+    super.initState();
+    // ignore: discarded_futures
+    NavRestore.save(screen: NavRestore.depotList);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<Access>(
       future: Access.load(),
       builder: (context, snapshot) {
         final access = snapshot.data ?? Access();
-        final visible = access.visibleDepots(depots);
+        final visible = access.visibleDepots(widget.depots);
 
         return Scaffold(
           backgroundColor: const Color(0xFFF5F6F8),

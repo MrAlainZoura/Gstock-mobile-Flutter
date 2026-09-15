@@ -4,6 +4,7 @@ import '../../api/client_service.dart';
 import '../../models/client.dart';
 import '../../models/depot.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/nav_restore.dart';
 import 'edit.dart';
 
 enum _ClientPeriod { year, month }
@@ -29,6 +30,8 @@ class _ClientIndexPageState extends State<ClientIndexPage> {
   @override
   void initState() {
     super.initState();
+    // ignore: discarded_futures
+    NavRestore.save(screen: NavRestore.clients, depotId: widget.depot.id);
     _load();
   }
 

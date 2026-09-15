@@ -5,11 +5,12 @@ import '../api/dashboard_service.dart';
 import '../models/depot.dart';
 import '../utils/access.dart';
 import '../utils/app_theme.dart';
+import '../utils/nav_restore.dart';
 import 'depot/dashboard.dart';
 import 'depot/index.dart';
 import 'login_page.dart';
 
-/// Au démarrage : session JWT valide → dashboard / points de vente ;
+/// Au démarrage : session JWT valide → dernier écran / dashboard ;
 /// sinon → [LoginPage].
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -40,9 +41,12 @@ class _AuthGateState extends State<AuthGate> {
       final connected = dash.user ?? sessionUser;
       final access = Access(role: role, user: connected);
       final depots = access.visibleDepots(dash.depots);
+      final snap = await NavRestore.load();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => postLoginHome(depots)),
+        MaterialPageRoute(
+          builder: (_) => NavRestore.homeFor(depots, snap: snap),
+        ),
       );
     } catch (_) {
       await auth.logout();
@@ -69,6 +73,7 @@ class _AuthGateState extends State<AuthGate> {
 }
 
 /// Une seule PDV → dashboard ; plusieurs → liste des points de vente.
+/// Préférer [NavRestore.homeFor] pour restaurer l’écran mémorisé.
 Widget postLoginHome(List<Depot> depots) {
   if (depots.length == 1) {
     return DashboardPage(depot: depots.first);

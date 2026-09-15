@@ -8,6 +8,7 @@ import '../../models/depot.dart';
 import '../../models/vente.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/nav_restore.dart';
 import '../../utils/period.dart';
 import 'create.dart';
 import 'compassassion_index.dart';
@@ -37,6 +38,8 @@ class _VenteIndexPageState extends State<VenteIndexPage> {
   @override
   void initState() {
     super.initState();
+    // ignore: discarded_futures
+    NavRestore.save(screen: NavRestore.ventes, depotId: widget.depot.id);
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
     }

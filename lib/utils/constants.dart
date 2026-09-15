@@ -10,6 +10,8 @@ const String storageTokenKey = "jwt_token";
 const String storageUserKey = "user";
 const String storageRoleKey = "user_role";
 const String storageCatalogPrefix = "depot_catalog_";
+/// Dernier écran ouvert (restauration si la session JWT est encore valide).
+const String storageNavRestoreKey = "nav_restore";
 
 /// URL publique d'un fichier uploadé (`/uploads/{folder}/{file}`).
 String uploadsUrl(String folder, String? fileName) {

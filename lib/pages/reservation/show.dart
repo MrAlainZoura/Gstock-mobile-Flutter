@@ -9,6 +9,7 @@ import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/duree.dart';
+import '../../utils/nav_restore.dart';
 import '../../widgets/confirm_dialog.dart';
 import 'create.dart';
 
@@ -38,6 +39,12 @@ class _ReservationShowPageState extends State<ReservationShowPage> {
   @override
   void initState() {
     super.initState();
+    // ignore: discarded_futures
+    NavRestore.save(
+      screen: NavRestore.reservationShow,
+      depotId: widget.depot?.id,
+      entityId: widget.reservationId,
+    );
     _load();
   }
 

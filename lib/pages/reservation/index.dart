@@ -9,6 +9,7 @@ import '../../models/reservation.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/duree.dart';
+import '../../utils/nav_restore.dart';
 import '../../utils/period.dart';
 import 'create.dart';
 import 'creances.dart';
@@ -37,6 +38,11 @@ class _ReservationIndexPageState extends State<ReservationIndexPage> {
   @override
   void initState() {
     super.initState();
+    // ignore: discarded_futures
+    NavRestore.save(
+      screen: NavRestore.reservations,
+      depotId: widget.depot.id,
+    );
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
     }

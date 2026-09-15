@@ -7,6 +7,7 @@ import '../../models/vente.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../utils/nav_restore.dart';
 import 'compassassion_create.dart';
 import 'create.dart';
 
@@ -32,6 +33,12 @@ class _VenteShowPageState extends State<VenteShowPage> {
   @override
   void initState() {
     super.initState();
+    // ignore: discarded_futures
+    NavRestore.save(
+      screen: NavRestore.venteShow,
+      depotId: widget.depot?.id,
+      entityId: widget.venteId,
+    );
     _load();
   }
 

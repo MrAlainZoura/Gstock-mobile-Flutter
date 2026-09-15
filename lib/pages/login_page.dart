@@ -5,7 +5,7 @@ import '../api/auth_service.dart';
 import '../api/dashboard_service.dart';
 import '../utils/access.dart';
 import '../utils/app_theme.dart';
-import 'auth_gate.dart';
+import '../utils/nav_restore.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -52,9 +52,13 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       );
+      final snap = await NavRestore.load();
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => postLoginHome(depots)),
+        MaterialPageRoute(
+          builder: (_) => NavRestore.homeFor(depots, snap: snap),
+        ),
       );
     } on ApiException catch (e) {
       if (!mounted) return;

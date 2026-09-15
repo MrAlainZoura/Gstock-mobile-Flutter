@@ -33,6 +33,7 @@ class ApiClient {
     await prefs.remove(storageTokenKey);
     await prefs.remove(storageUserKey);
     await prefs.remove(storageRoleKey);
+    await prefs.remove(storageNavRestoreKey);
     final catalogKeys = prefs
         .getKeys()
         .where((k) => k.startsWith(storageCatalogPrefix))

@@ -6,6 +6,7 @@ import '../../models/transfert.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/duree.dart';
+import '../../utils/nav_restore.dart';
 import '../../utils/period.dart';
 import 'create.dart';
 import 'show.dart';
@@ -32,6 +33,8 @@ class _TransfertIndexPageState extends State<TransfertIndexPage> {
   @override
   void initState() {
     super.initState();
+    // ignore: discarded_futures
+    NavRestore.save(screen: NavRestore.transferts, depotId: widget.depot.id);
     if (!widget.depot.abonnementCurrent) {
       _period = PeriodRange.month();
     }

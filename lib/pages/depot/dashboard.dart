@@ -14,6 +14,7 @@ import '../../models/produit.dart';
 import '../../models/user.dart';
 import '../../utils/access.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/nav_restore.dart';
 import '../../widgets/account_actions.dart';
 import '../../widgets/counts_bar_chart.dart';
 import '../../widgets/curved_bottom_nav.dart';
@@ -28,9 +29,11 @@ import 'stock_list.dart';
 
 /// Dashboard point de vente — `GET /dashboard` + rapport mensuel.
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key, this.depot});
+  const DashboardPage({super.key, this.depot, this.initialNavIndex = 0});
 
   final Depot? depot;
+  /// 0 = dashboard, 1 = stock (restauré après cold start).
+  final int initialNavIndex;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -45,11 +48,12 @@ class _DashboardPageState extends State<DashboardPage> {
   List<User> _depotUsers = [];
   List<Client> _loyalClients = [];
   Access _access = Access();
-  int _navIndex = 0;
+  late int _navIndex;
 
   @override
   void initState() {
     super.initState();
+    _navIndex = widget.initialNavIndex.clamp(0, 1);
     _load();
   }
 
@@ -104,6 +108,7 @@ class _DashboardPageState extends State<DashboardPage> {
       });
 
       if (depot != null) {
+        _remember(depot);
         unawaited(_loadLoyalClients(depot.id));
       }
     } catch (e) {
@@ -171,23 +176,42 @@ class _DashboardPageState extends State<DashboardPage> {
     return '$type $libele';
   }
 
+  void _remember(Depot? depot) {
+    if (depot == null) return;
+    // ignore: discarded_futures
+    NavRestore.save(
+      screen: NavRestore.dashboard,
+      depotId: depot.id,
+      navIndex: _navIndex.clamp(0, 1),
+    );
+  }
+
   void _onNav(int i, Depot? depot) {
     setState(() => _navIndex = i);
-    if (depot == null || i == 0 || i == 1) return;
-    Future<void> open(Widget page) async {
+    if (i == 0 || i == 1) {
+      _remember(depot);
+      return;
+    }
+    if (depot == null) return;
+    Future<void> open(Widget page, String screen) async {
+      await NavRestore.save(screen: screen, depotId: depot.id);
+      if (!mounted) return;
       await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
-      if (mounted) setState(() => _navIndex = 0);
+      if (mounted) {
+        setState(() => _navIndex = 0);
+        _remember(depot);
+      }
     }
 
     switch (i) {
       case 2:
-        open(ApproIndexPage(depot: depot));
+        open(ApproIndexPage(depot: depot), NavRestore.appros);
         break;
       case 3:
-        open(VenteIndexPage(depot: depot));
+        open(VenteIndexPage(depot: depot), NavRestore.ventes);
         break;
       case 4:
-        open(ReservationIndexPage(depot: depot));
+        open(ReservationIndexPage(depot: depot), NavRestore.reservations);
         break;
     }
   }

@@ -4,6 +4,7 @@ import '../../api/compassassion_service.dart';
 import '../../models/depot.dart';
 import '../../models/vente.dart';
 import '../../utils/app_theme.dart';
+import '../../utils/nav_restore.dart';
 import '../../utils/period.dart';
 import 'show.dart';
 
@@ -28,6 +29,11 @@ class _CompassassionIndexPageState extends State<CompassassionIndexPage> {
   @override
   void initState() {
     super.initState();
+    // ignore: discarded_futures
+    NavRestore.save(
+      screen: NavRestore.compassassions,
+      depotId: widget.depot.id,
+    );
     _load();
   }
 
